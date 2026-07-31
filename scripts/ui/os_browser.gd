@@ -270,6 +270,35 @@ func _render_shop() -> void:
 	for item in abos:
 		page_box.add_child(_card(item))
 
+	# --- Vendre son stock (étagère du local courant) ---
+	page_box.add_child(_section_title("📦 Vendre ton stock"))
+	var sell_hint := Label.new()
+	sell_hint.text = "💡 Dépose du matériel sur l'étagère pour le revendre ici : reprise à %d%% du prix d'achat (+10%% si un OS est déjà installé sur un serveur)." % int(ShopCatalog.RESALE_RATIO * 100)
+	sell_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sell_hint.add_theme_font_size_override("font_size", 12)
+	sell_hint.add_theme_color_override("font_color", Color(1.0, 0.85, 0.5))
+	page_box.add_child(sell_hint)
+	var shelf := _garage_storage()
+	if shelf == null:
+		var na := Label.new()
+		na.text = "Aucune étagère disponible ici."
+		na.add_theme_font_size_override("font_size", 13)
+		na.add_theme_color_override("font_color", Color(1, 1, 1, 0.5))
+		page_box.add_child(na)
+	elif shelf.count() == 0:
+		var empty := Label.new()
+		empty.text = "Ton étagère est vide. Dépose des objets dessus (E près de l'étagère) pour pouvoir les revendre."
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		empty.add_theme_font_size_override("font_size", 13)
+		empty.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
+		page_box.add_child(empty)
+	else:
+		for i in range(StorageUnit.SLOTS):
+			var it: Dictionary = shelf.items[i]
+			if it.is_empty():
+				continue
+			page_box.add_child(_stock_card(shelf, i))
+
 	buy_entries.clear()
 	_refresh_cash()
 
@@ -687,6 +716,90 @@ func _flash(text: String) -> void:
 		flash_label.text = text
 		flash_label.visible = true
 		flash_timer.start()
+
+
+# ------------------------------------------------------------------ Revente du stock
+func _garage_storage() -> StorageUnit:
+	## L'étagère de stockage du local courant (le navigateur est dans le PC
+	## de ce local, donc on vend le stock d'ICI).
+	var garage := _garage()
+	if garage == null:
+		return null
+	return garage.storage_unit
+
+
+func _stock_card(shelf: StorageUnit, idx: int) -> Control:
+	## Carte d'un objet stocké avec son bouton de revente.
+	var it: Dictionary = shelf.items[idx]
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", UITheme.card(10))
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	card.add_child(row)
+
+	var icon := TextureRect.new()
+	icon.texture = BakedAssets.item_tex(it)
+	# Items sans texture dédiée (batterie…) : on teinte le bloc générique avec
+	# la couleur de l'item, comme le fait le panneau de l'étagère.
+	var ikind := str(it.get("kind", ""))
+	if ikind != "server" and ikind != "furniture" and ikind != "clim":
+		icon.modulate = it.get("color", Color(1, 1, 1))
+	icon.custom_minimum_size = Vector2(48, 48)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(icon)
+
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info.add_theme_constant_override("separation", 2)
+	row.add_child(info)
+
+	var name_label := Label.new()
+	name_label.text = str(it.get("name", "Objet"))
+	name_label.add_theme_font_size_override("font_size", 16)
+	info.add_child(name_label)
+
+	var status := Label.new()
+	status.add_theme_font_size_override("font_size", 13)
+	info.add_child(status)
+	if str(it.get("kind", "")) == "server":
+		if it.has("os"):
+			status.text = "OS installé : %s — prêt à brancher" % it.get("os_name", it.get("os", ""))
+			status.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
+		else:
+			status.text = "Sans OS"
+			status.add_theme_color_override("font_color", Color(1.0, 0.75, 0.4))
+	else:
+		status.text = "En stock — reprise à %d $" % ShopCatalog.resale_value(it)
+		status.add_theme_color_override("font_color", Color(0.8, 0.9, 1.0))
+
+	var sell := Button.new()
+	sell.text = "Vendre %d $" % ShopCatalog.resale_value(it)
+	sell.custom_minimum_size = Vector2(150, 44)
+	sell.add_theme_stylebox_override("normal", UITheme.button_normal(Color(0.55, 0.35, 0.15)))
+	sell.add_theme_stylebox_override("hover", UITheme.button_hover(Color(0.7, 0.45, 0.2)))
+	sell.add_theme_stylebox_override("pressed", UITheme.button_pressed())
+	sell.add_theme_stylebox_override("focus", UITheme.button_focus())
+	sell.add_theme_font_size_override("font_size", 15)
+	sell.pressed.connect(_sell_stock.bind(idx))
+	row.add_child(sell)
+	return card
+
+
+func _sell_stock(idx: int) -> void:
+	## Revend un objet stocké : il quitte l'étagère et rapporte du cash.
+	var shelf := _garage_storage()
+	if shelf == null:
+		return
+	var it := shelf.take(idx)
+	if it.is_empty():
+		return
+	var value := ShopCatalog.resale_value(it)
+	GameManager.cash += value
+	_render_shop()
+	_flash("✓ %s vendu : +%d $" % [it.get("name", "Objet"), value])
 
 
 func _buy(item: Dictionary) -> void:

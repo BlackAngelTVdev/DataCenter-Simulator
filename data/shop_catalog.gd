@@ -281,3 +281,18 @@ static func abo_tier(id: String) -> int:
 		if ABOS[i]["id"] == id:
 			return i
 	return -1
+
+
+## Prix de revente d'un objet du stock, en % du prix catalogue (Tech'Occase
+## rachète le matériel qu'on a déposé sur l'étagère).
+const RESALE_RATIO := 0.6
+
+
+static func resale_value(item: Dictionary) -> int:
+	## Valeur de revente d'un objet stocké (arrondie à l'unité). Un serveur
+	## avec OS installé vaut un peu plus (l'OS reste dessus).
+	var base := float(item.get("price", 0))
+	var ratio := RESALE_RATIO
+	if str(item.get("kind", "")) == "server" and item.has("os"):
+		ratio += 0.1  # +10% si prêt à brancher (OS déjà installé)
+	return maxi(1, int(round(base * ratio)))
