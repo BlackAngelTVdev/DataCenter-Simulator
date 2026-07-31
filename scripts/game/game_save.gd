@@ -30,7 +30,9 @@ static func persist(garage: GarageScene) -> bool:
 		"temperature": GameManager.temperature,
 		"abo_id": GameManager.abo_id,
 		"firewall_owned": GameManager.firewall_owned,
+		"owned": GameManager.owned.keys(),
 		"rack_limit": GameManager.rack_limit,
+		"clim_limit": GameManager.clim_limit,
 		"location": GameManager.location,
 		"location_unlocked": GameManager.location_unlocked,
 		"deliveries": GameManager.deliveries.duplicate(true),
@@ -71,7 +73,21 @@ static func load_into(garage: GarageScene) -> void:
 	GameManager.temperature = float(data.get("temperature", 20.0))
 	GameManager.abo_id = str(data.get("abo_id", GameManager.DEFAULT_ABO))
 	GameManager.firewall_owned = bool(data.get("firewall_owned", false))
+	# Achats uniques : on repart de l'abo par défaut + ce qui est dans la sauvegarde.
+	GameManager.owned = {GameManager.DEFAULT_ABO: true}
+	var owned_arr: Variant = data.get("owned", [])
+	if typeof(owned_arr) == TYPE_ARRAY:
+		for oid in owned_arr:
+			GameManager.owned[str(oid)] = true
+	# Compat anciennes sauvegardes : les flags pare-feu / local existent déjà.
+	if GameManager.firewall_owned:
+		GameManager.owned["upgrade_firewall"] = true
+	if GameManager.location_unlocked:
+		GameManager.owned["local_2"] = true
+	# Seed défensif : l'abo courant est toujours « possédé » (cohérence garde _buy).
+	GameManager.owned[GameManager.abo_id] = true
 	GameManager.rack_limit = int(data.get("rack_limit", 3))
+	GameManager.clim_limit = int(data.get("clim_limit", 6))
 	GameManager.location = int(data.get("location", 0))
 	GameManager.location_unlocked = bool(data.get("location_unlocked", false))
 	_restore_pos(data.get("pos", {}))

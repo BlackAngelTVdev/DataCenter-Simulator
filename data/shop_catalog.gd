@@ -115,6 +115,46 @@ const BATTERIES := [
 
 
 # ------------------------------------------------------------------
+#  CLIMATISEURS — à poser où on veut au sol. Chaque clim soustrait sa
+#  puissance « cooling » à la chaleur des serveurs : au-delà de 50 °C,
+#  les serveurs S'ARRÊTENT (plus de revenus !). Plus on a de serveurs,
+#  plus il faut de clims (ou de meilleures clims).
+# ------------------------------------------------------------------
+const CLIMS := [
+	{
+		"id": "clim_ventilo",
+		"kind": "clim",
+		"name": "Climatiseur Ventilo",
+		"desc": "Petit split d'appoint : refroidit un peu. Idéal pour débuter.",
+		"price": 150,
+		"cooling": 2.0,
+		"watts": 60,
+		"color": Color(0.7, 0.85, 0.95),
+	},
+	{
+		"id": "clim_split",
+		"kind": "clim",
+		"name": "Climatiseur Split 9000 BTU",
+		"desc": "Le standard du garage : fait redescendre une grosse chauffe.",
+		"price": 400,
+		"cooling": 6.0,
+		"watts": 180,
+		"color": Color(0.45, 0.72, 0.95),
+	},
+	{
+		"id": "clim_industriel",
+		"kind": "clim",
+		"name": "Centrale de froid industriel",
+		"desc": "Puissance data center : gère une salle entière d'armoires.",
+		"price": 1200,
+		"cooling": 16.0,
+		"watts": 480,
+		"color": Color(0.2, 0.55, 0.9),
+	},
+]
+
+
+# ------------------------------------------------------------------
 #  LOCAUX — augmentent la limite d'armoires du garage. Le garage de
 #  départ n'accepte que 3 armoires ; chaque local acheté en ajoute
 #  (rack_bonus) de plus. Copie-colle un bloc pour de nouvelles tailles.
@@ -213,6 +253,7 @@ static func shop_items() -> Array:
 	items.append_array(SERVERS)
 	items.append_array(FURNITURE)
 	items.append_array(BATTERIES)
+	items.append_array(CLIMS)
 	items.append_array(LOCALS)
 	items.append_array(UPGRADES)
 	items.append_array(ABOS)
@@ -231,3 +272,12 @@ static func get_abo(id: String) -> Dictionary:
 		if abo["id"] == id:
 			return abo
 	return ABOS[0]
+
+
+static func abo_tier(id: String) -> int:
+	## Rang de l'abonnement dans ABOS (0 = plus basique, croissant) — sert à
+	## interdire le downgrade (on ne « rachète » pas un abo moins bon).
+	for i in range(ABOS.size()):
+		if ABOS[i]["id"] == id:
+			return i
+	return -1

@@ -161,6 +161,13 @@ func _refresh() -> void:
 	# Température (avertissement)
 	_section("🌡 LOCAL", Color(1.0, 0.7, 0.4))
 	var temp := GameManager.temperature
-	var warn := temp >= 30.0
-	_row("Température", "%.1f °C%s" % [temp, " ⚠ CHAUFFE !" if warn else ""],
-			Color(1.0, 0.5, 0.4) if warn else Color(1, 1, 1, 0.9))
+	var over := GameManager.overheated
+	var warn := temp >= 30.0 and not over
+	var cooling := GameManager.cooling_total
+	_row("Refroidissement", "-%.2f °C/s" % (cooling * GameManager.HEAT_PER_SEC) if cooling > 0.0 else "— (aucune clim)")
+	if over:
+		_row("Température", "%.1f °C 🔥 SERVEURS ARRÊTÉS ! (achète des clims)" % temp,
+				Color(1.0, 0.3, 0.3))
+	else:
+		_row("Température", "%.1f °C%s" % [temp, " ⚠ CHAUFFE !" if warn else ""],
+				Color(1.0, 0.5, 0.4) if warn else Color(1, 1, 1, 0.9))

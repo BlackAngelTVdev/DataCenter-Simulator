@@ -7,14 +7,33 @@ extends Node
 const START_CASH := 300.0
 const DEFAULT_ABO := "abo_1g"
 
+## Seuil d'arrêt : au-delà, tous les serveurs s'éteignent (plus de revenus).
+const CRITICAL_TEMP := 50.0
+const TEMP_AMBIANT := 20.0
+
+## Facteur de conversion chaleur/refroidissement → °C par seconde.
+## Source unique : l'affichage (shop, monitor, factures) l'utilise aussi.
+const HEAT_PER_SEC := 0.02
+
 ## Tarifs (factures) — électricité en $ par watt et par seconde.
 const ELECTRIC_RATE := 0.00002  # 20 kW pour 1000 W ≈ 0.72 $/h
 const SECONDS_PER_MONTH := 30.0 * 24.0 * 3600.0
 
 var cash := START_CASH
-var temperature := 20.0
+var temperature := TEMP_AMBIANT
 var abo_id := DEFAULT_ABO
 var firewall_owned := false
+
+## Refroidissement total des clims du local courant (recalculé au tick).
+var cooling_total := 0.0
+
+## Vrai quand la température dépasse CRITICAL_TEMP : serveurs à l'arrêt.
+var overheated := false
+
+## Achats UNIQUES déjà faits (id d'item → true) : abonnements achetés,
+## pare-feu, locaux… On ne peut pas les racheter (boutique logique).
+## Sauvegardé dans game_save.gd.
+var owned := {}
 
 ## Consommation électrique totale (watts) des serveurs, recalculée au tick.
 var total_watts := 0
@@ -22,6 +41,9 @@ var total_watts := 0
 ## Nombre max d'armoires posables dans le garage (augmenté en achetant
 ## un « local » sur Tech'Occase — voir data/shop_catalog.gd).
 var rack_limit := 3
+
+## Nombre max de climatiseurs par local (l'électricité a des limites !).
+var clim_limit := 6
 
 ## Local actuel : 0 = garage DC-1, 1 = Local 2 « Data Hall ».
 var location := 0
@@ -65,10 +87,14 @@ var online_servers := 0
 func reset() -> void:
 	## Nouvelle partie : on repart de zéro.
 	cash = START_CASH
-	temperature = 20.0
+	temperature = TEMP_AMBIANT
 	abo_id = DEFAULT_ABO
 	firewall_owned = false
+	cooling_total = 0.0
+	overheated = false
+	owned = {DEFAULT_ABO: true}  # l'abo de base est déjà « possédé »
 	rack_limit = 3
+	clim_limit = 6
 	location = 0
 	location_unlocked = false
 	rack_limit_2 = 6
@@ -93,6 +119,16 @@ func electric_cost_per_sec() -> float:
 func abo_fee_per_sec() -> float:
 	## Mensualité de l'abonnement internet, ramenée par seconde.
 	return float(ShopCatalog.get_abo(abo_id).get("fee", 0)) / SECONDS_PER_MONTH
+
+
+func owns(id: String) -> bool:
+	## L'item (abo, pare-feu, local…) a-t-il déjà été acheté ?
+	return owned.has(id)
+
+
+func mark_owned(id: String) -> void:
+	## Marque un achat unique comme fait (ne pourra plus être racheté).
+	owned[id] = true
 
 
 func bandwidth_limit() -> int:

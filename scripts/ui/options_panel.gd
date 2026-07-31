@@ -101,6 +101,21 @@ func _build() -> void:
 	for r in RESOLUTIONS:
 		resolution_button.add_item("%d x %d" % [r.x, r.y])
 	resolution_button.item_selected.connect(_on_resolution_selected)
+	# Stylé comme le reste de l'UI (fini le thème gris Godot par défaut)
+	resolution_button.custom_minimum_size = Vector2(320, 40)
+	resolution_button.add_theme_font_size_override("font_size", 15)
+	resolution_button.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
+	resolution_button.add_theme_stylebox_override("normal", UITheme.field())
+	resolution_button.add_theme_stylebox_override("hover", UITheme.tinted(Color(0.22, 0.3, 0.45), 10.0, 6.0))
+	resolution_button.add_theme_stylebox_override("pressed", UITheme.button_pressed())
+	resolution_button.add_theme_stylebox_override("focus", UITheme.button_focus())
+	# Le menu déroulant hérite du thème Godot : on le style aussi
+	var popup := resolution_button.get_popup()
+	popup.add_theme_stylebox_override("panel", UITheme.panel(10))
+	popup.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
+	popup.add_theme_color_override("font_hover_color", Color(1, 1, 1))
+	popup.add_theme_stylebox_override("hover", UITheme.tinted(Color(0.2, 0.28, 0.42), 8.0, 6.0))
+	popup.add_theme_stylebox_override("separator", StyleBoxEmpty.new())
 	vb.add_child(resolution_button)
 
 	# Volume (appliqué au bus Master ; pas encore d'audio dans le jeu)
@@ -113,6 +128,24 @@ func _build() -> void:
 	volume_slider.max_value = 100.0
 	volume_slider.custom_minimum_size = Vector2(320, 20)
 	volume_slider.value_changed.connect(_on_volume_changed)
+	# Slider stylé : piste + zone remplie + poignée (textures cuites)
+	var track := StyleBoxTexture.new()
+	track.texture = BakedAssets.tex("bar_bg")
+	track.texture_margin_left = 3
+	track.texture_margin_right = 3
+	track.texture_margin_top = 3
+	track.texture_margin_bottom = 3
+	volume_slider.add_theme_stylebox_override("slider", track)
+	var fill := StyleBoxTexture.new()
+	fill.texture = BakedAssets.tex("bar_fill")
+	fill.modulate_color = Color(0.45, 0.75, 1.0)
+	fill.texture_margin_left = 3
+	fill.texture_margin_right = 3
+	fill.texture_margin_top = 3
+	fill.texture_margin_bottom = 3
+	volume_slider.add_theme_stylebox_override("grabber_area", fill)
+	volume_slider.add_theme_icon_override("grabber", BakedAssets.tex("knob"))
+	volume_slider.add_theme_icon_override("grabber_highlight", BakedAssets.tex("knob"))
 	vb.add_child(volume_slider)
 
 	# Retour

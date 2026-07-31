@@ -53,11 +53,16 @@ func _ready() -> void:
 	output.add_theme_color_override("default_color", Color(0.7, 0.9, 0.7))
 	vb.add_child(output)
 
-	# Entrée
+	# Entrée (stylée comme le champ d'adresse du navigateur — plus de thème gris)
 	input = LineEdit.new()
 	input.custom_minimum_size = Vector2(0, 34)
 	input.placeholder_text = "Commande… (tape « aide »)"
 	input.text_submitted.connect(_on_submit)
+	input.add_theme_stylebox_override("normal", UITheme.field())
+	input.add_theme_font_size_override("font_size", 14)
+	input.add_theme_color_override("font_color", Color(0.75, 0.95, 0.8))
+	input.add_theme_color_override("caret_color", Color(0.6, 0.9, 0.7))
+	input.add_theme_color_override("placeholder_color", Color(1, 1, 1, 0.35))
 	vb.add_child(input)
 
 	_append("BianOS 12 « Bookpoule » — session garage")

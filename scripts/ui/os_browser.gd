@@ -1,12 +1,17 @@
 class_name OSBrowser
 extends PanelContainer
-## Fenêtre « Renard » : le navigateur web du faux OS. On va sur le site
-## Tech'Occase pour acheter du matériel de seconde main (serveurs, armoires,
-## pare-feu, abonnements). Le contenu vient du catalogue data/shop_catalog.gd.
+## Fenêtre « Renard » : le navigateur web du faux OS.
+##  • https://tech-occase.bian/  → boutique Tech'Occase (achat de matériel)
+##  • https://monitor.bian/      → MONITOR : supervision en direct de la
+##    connexion (saturée ou non, clients / bande passante) et des serveurs
+##    (charge, saturation, revenus). Rafraîchi chaque seconde.
+## Les données viennent de la scène garage courante (placed_servers) et de
+## GameManager (stats recalculées au tick).
 
 signal closed
 
 const SITE_URL := "https://tech-occase.bian/"
+const MONITOR_URL := "https://monitor.bian/"
 
 var page_box: VBoxContainer
 var cash_label: Label
@@ -15,6 +20,19 @@ var flash_timer: Timer
 var url_edit: LineEdit
 # Chaque entrée = { "btn": Button, "item": Dictionary } dans le même ordre que le rendu.
 var buy_entries: Array = []
+
+# --- Navigation ---
+var history: Array = [SITE_URL]
+var history_idx := 0
+var current_page := "shop"  # "shop" | "monitor"
+
+# --- Références monitor (rafraîchies sans tout reconstruire) ---
+var mon_conn_bar: ProgressBar
+var mon_conn_label: Label
+var mon_conn_status: Label
+var mon_servers_box: VBoxContainer
+var mon_tick_label: Label
+var monitor_timer: Timer
 
 
 func _ready() -> void:
@@ -35,13 +53,19 @@ func _ready() -> void:
 	flash_timer.timeout.connect(func() -> void: flash_label.visible = false)
 	add_child(flash_timer)
 
+	# Rafraîchit le monitoring en direct quand la page est visible.
+	monitor_timer = Timer.new()
+	monitor_timer.wait_time = 1.0
+	monitor_timer.timeout.connect(_on_monitor_tick)
+	add_child(monitor_timer)
+	monitor_timer.start()
+
 	_render_page()
 
 
 # ------------------------------------------------------------------ UI
 func _btn(text: String, min_w: float) -> Button:
-	## Petit bouton de barre d'outils (← → ⟳ ✕) : stylé comme le reste de l'UI
-	## (plus le thème Godot par défaut, gris et incohérent).
+	## Petit bouton de barre d'outils (← → ⟳ ✕) : stylé comme le reste de l'UI.
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(min_w, 0)
@@ -90,20 +114,20 @@ func _build_toolbar() -> Control:
 	panel.add_child(bar)
 
 	var back := _btn("←", 36.0)
-	back.pressed.connect(_toolbar_noop)
+	back.pressed.connect(_go_back)
 	bar.add_child(back)
 	var fwd := _btn("→", 36.0)
-	fwd.pressed.connect(_toolbar_noop)
+	fwd.pressed.connect(_go_forward)
 	bar.add_child(fwd)
 	var refresh := _btn("⟳", 36.0)
-	refresh.pressed.connect(_toolbar_noop)
+	refresh.pressed.connect(_reload)
 	bar.add_child(refresh)
 
 	url_edit = LineEdit.new()
 	url_edit.text = SITE_URL
 	url_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	url_edit.editable = true
-	url_edit.text_submitted.connect(func(_t: String) -> void: _render_page())
+	url_edit.text_submitted.connect(_navigate)
 	url_edit.add_theme_stylebox_override("normal", UITheme.field())
 	url_edit.add_theme_font_size_override("font_size", 14)
 	url_edit.add_theme_color_override("font_color", Color(0.85, 0.92, 1.0))
@@ -120,61 +144,74 @@ func _build_page() -> Control:
 	page_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	page_box.add_theme_constant_override("separation", 10)
 	scroll.add_child(page_box)
-
-	# Bandeau du site
-	var banner := PanelContainer.new()
-	banner.add_theme_stylebox_override("panel", UITheme.tinted(Color(0.12, 0.3, 0.45), 14.0, 10.0))
-	var banner_vb := VBoxContainer.new()
-	banner_vb.add_theme_constant_override("separation", 4)
-	banner.add_child(banner_vb)
-
-	var site_name := Label.new()
-	site_name.text = "Tech'Occase"
-	site_name.add_theme_font_size_override("font_size", 28)
-	site_name.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
-	banner_vb.add_child(site_name)
-
-	var slogan := Label.new()
-	slogan.text = "Matériel informatique reconditionné — « Des prix de garage ! »"
-	slogan.add_theme_font_size_override("font_size", 14)
-	banner_vb.add_child(slogan)
-
-	cash_label = Label.new()
-	cash_label.text = "💰 0 $"
-	cash_label.add_theme_font_size_override("font_size", 16)
-	cash_label.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
-	banner_vb.add_child(cash_label)
-
-	flash_label = Label.new()
-	flash_label.add_theme_font_size_override("font_size", 14)
-	flash_label.add_theme_color_override("font_color", Color(0.6, 1.0, 0.7))
-	flash_label.visible = false
-	banner_vb.add_child(flash_label)
-
-	page_box.add_child(banner)
 	return scroll
 
 
-# ------------------------------------------------------------------ Contenu
-func _section_title(text: String) -> Label:
-	var l := Label.new()
-	l.text = "── " + text + " ──"
-	l.add_theme_font_size_override("font_size", 18)
-	l.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
-	return l
+# ------------------------------------------------------------------ Navigation
+func _navigate(text: String) -> void:
+	var url := text.strip_edges()
+	if url.is_empty():
+		return
+	if not url.begins_with("https://"):
+		url = "https://" + url
+	if not url.ends_with("/"):
+		url += "/"
+	url_edit.text = url
+	# Réécrit l'historique à partir de la position courante (comme un vrai navigateur)
+	history = history.slice(0, history_idx + 1)
+	history.append(url)
+	history_idx = history.size() - 1
+	_render_page()
 
 
+func _go_back() -> void:
+	if history_idx > 0:
+		history_idx -= 1
+		url_edit.text = history[history_idx]
+		_render_page()
+
+
+func _go_forward() -> void:
+	if history_idx < history.size() - 1:
+		history_idx += 1
+		url_edit.text = history[history_idx]
+		_render_page()
+
+
+func _reload() -> void:
+	_render_page()
+	_flash("Page actualisée.")
+
+
+func _garage() -> GarageScene:
+	## La scène garage courante (garage.tscn ou local2.tscn, script GarageScene).
+	return get_tree().current_scene as GarageScene
+
+
+# ------------------------------------------------------------------ Routage
 func _render_page() -> void:
+	var url := (url_edit.text as String).to_lower()
+	if url.contains("monitor"):
+		current_page = "monitor"
+		_render_monitor()
+	else:
+		current_page = "shop"
+		_render_shop()
+
+
+func _render_shop() -> void:
 	# Recalcule les boutons mais garde le bandeau (enfants créés dans _build_page).
 	for child in page_box.get_children():
 		child.queue_free()
 	# on re-crée le bandeau à chaque rendu (simple et robuste)
 	var banner := _build_banner()
 	page_box.add_child(banner)
+	page_box.add_child(_build_site_links())
 
 	var servers: Array = []
 	var furniture: Array = []
 	var batteries: Array = []
+	var clims: Array = []
 	var locals: Array = []
 	var upgrades: Array = []
 	var abos: Array = []
@@ -183,6 +220,7 @@ func _render_page() -> void:
 			"server": servers.append(item)
 			"furniture": furniture.append(item)
 			"battery": batteries.append(item)
+			"clim": clims.append(item)
 			"local": locals.append(item)
 			"upgrade": upgrades.append(item)
 			"abo": abos.append(item)
@@ -209,6 +247,15 @@ func _render_page() -> void:
 	battery_hint.add_theme_color_override("font_color", Color(0.6, 1.0, 0.75))
 	page_box.add_child(battery_hint)
 	for item in batteries:
+		page_box.add_child(_card(item))
+	page_box.add_child(_section_title("Climatisation"))
+	var clim_hint := Label.new()
+	clim_hint.text = "💡 Les serveurs chauffent le local : au-delà de %d °C ils S'ARRÊTENT (plus de revenus !). Pose des clims où tu veux pour refroidir." % int(GameManager.CRITICAL_TEMP)
+	clim_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	clim_hint.add_theme_font_size_override("font_size", 12)
+	clim_hint.add_theme_color_override("font_color", Color(0.6, 1.0, 1.0))
+	page_box.add_child(clim_hint)
+	for item in clims:
 		page_box.add_child(_card(item))
 	page_box.add_child(_section_title("Locaux & expansion"))
 	var local_hint := Label.new()
@@ -257,6 +304,264 @@ func _build_banner() -> Control:
 	return banner
 
 
+func _build_site_links() -> Control:
+	## Mini-navigation entre les sites du faux OS (Tech'Occase / Monitor).
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	for link in [
+		["🛒 Tech'Occase", SITE_URL],
+		["📊 Monitor", MONITOR_URL],
+	]:
+		var b := _btn(link[0], 180.0)
+		b.pressed.connect(_navigate.bind(link[1]))
+		row.add_child(b)
+	return row
+
+
+func _section_title(text: String) -> Label:
+	var l := Label.new()
+	l.text = "── " + text + " ──"
+	l.add_theme_font_size_override("font_size", 18)
+	l.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
+	return l
+
+
+# ------------------------------------------------------------------ Monitoring
+func _render_monitor() -> void:
+	for child in page_box.get_children():
+		child.queue_free()
+
+	# Bandeau de supervision
+	var banner := PanelContainer.new()
+	banner.add_theme_stylebox_override("panel", UITheme.tinted(Color(0.1, 0.25, 0.22), 14.0, 10.0))
+	var banner_vb := VBoxContainer.new()
+	banner_vb.add_theme_constant_override("separation", 4)
+	banner.add_child(banner_vb)
+
+	var site_name := Label.new()
+	site_name.text = "📊 MONITOR — Supervision"
+	site_name.add_theme_font_size_override("font_size", 26)
+	site_name.add_theme_color_override("font_color", Color(0.5, 1.0, 0.8))
+	banner_vb.add_child(site_name)
+
+	mon_tick_label = Label.new()
+	mon_tick_label.add_theme_font_size_override("font_size", 13)
+	mon_tick_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
+	banner_vb.add_child(mon_tick_label)
+
+	page_box.add_child(banner)
+	page_box.add_child(_build_site_links())
+
+	# --- Connexion ---
+	page_box.add_child(_section_title("🌐 Connexion"))
+	var conn_card := PanelContainer.new()
+	conn_card.add_theme_stylebox_override("panel", UITheme.card(12))
+	var conn_vb := VBoxContainer.new()
+	conn_vb.add_theme_constant_override("separation", 6)
+	conn_card.add_child(conn_vb)
+
+	mon_conn_label = Label.new()
+	mon_conn_label.add_theme_font_size_override("font_size", 15)
+	conn_vb.add_child(mon_conn_label)
+
+	mon_conn_bar = _bar(0.0, Color(0.4, 0.9, 0.6))
+	conn_vb.add_child(mon_conn_bar)
+
+	mon_conn_status = Label.new()
+	mon_conn_status.add_theme_font_size_override("font_size", 15)
+	conn_vb.add_child(mon_conn_status)
+
+	page_box.add_child(conn_card)
+
+	# --- Infrastructure (stats globales) ---
+	page_box.add_child(_section_title("🖥 Infrastructure"))
+	var infra_card := PanelContainer.new()
+	infra_card.add_theme_stylebox_override("panel", UITheme.card(12))
+	var infra_grid := GridContainer.new()
+	infra_grid.columns = 2
+	infra_grid.add_theme_constant_override("h_separation", 24)
+	infra_grid.add_theme_constant_override("v_separation", 6)
+	infra_card.add_child(infra_grid)
+	_add_infra_row(infra_grid, "Serveurs en ligne", "servers")
+	_add_infra_row(infra_grid, "Revenus", "income")
+	_add_infra_row(infra_grid, "Consommation", "watts")
+	_add_infra_row(infra_grid, "Température", "temp")
+	_add_infra_row(infra_grid, "Refroidissement", "cooling")
+	_add_infra_row(infra_grid, "Climatiseurs", "clims")
+	page_box.add_child(infra_card)
+
+	# --- Serveurs ---
+	page_box.add_child(_section_title("🖴 Serveurs"))
+	mon_servers_box = VBoxContainer.new()
+	mon_servers_box.add_theme_constant_override("separation", 8)
+	page_box.add_child(mon_servers_box)
+
+	_refresh_monitor()
+
+
+func _add_infra_row(grid: GridContainer, label: String, key: String) -> void:
+	var l := Label.new()
+	l.text = label
+	l.add_theme_font_size_override("font_size", 14)
+	l.add_theme_color_override("font_color", Color(1, 1, 1, 0.7))
+	grid.add_child(l)
+	var v := Label.new()
+	v.add_theme_font_size_override("font_size", 14)
+	grid.add_child(v)
+	if not mon_infra.has(key):
+		mon_infra[key] = v
+
+
+var mon_infra := {}
+
+
+func _on_monitor_tick() -> void:
+	if visible and current_page == "monitor":
+		_refresh_monitor()
+
+
+func _refresh_monitor() -> void:
+	var garage := _garage()
+	if garage == null:
+		mon_tick_label.text = "— hors ligne —"
+		return
+	var gm := GameManager
+	var bw := gm.bandwidth_limit()
+	var clients := gm.total_clients
+	var used := float(clients) / float(bw) if bw > 0 else 0.0
+
+	mon_tick_label.text = "Dernière mesure : %s · %s" % [
+		Time.get_time_string_from_system(),
+		"DC-1" if gm.location == 0 else "DATA HALL",
+	]
+
+	# Connexion
+	var abo := ShopCatalog.get_abo(gm.abo_id)
+	mon_conn_label.text = "Abonnement %s — %d / %d clients" % [abo.get("name", "—"), clients, bw]
+	mon_conn_bar.max_value = 1.0
+	mon_conn_bar.value = clampf(used, 0.0, 1.0)
+	var conn_color := Color(1.0, 0.3, 0.25) if used >= 1.0 \
+		else (Color(1.0, 0.75, 0.3) if used >= 0.8 else Color(0.4, 0.9, 0.6))
+	mon_conn_bar.add_theme_stylebox_override("fill", _bar_fill(conn_color))
+	if used >= 1.0:
+		mon_conn_status.text = "⚠ CONNEXION SATURÉE — achète un meilleur abonnement !"
+		mon_conn_status.add_theme_color_override("font_color", Color(1.0, 0.4, 0.35))
+	elif used >= 0.8:
+		mon_conn_status.text = "⚠ Trafic élevé (%.0f %%) — pense à augmenter ta bande passante." % (used * 100.0)
+		mon_conn_status.add_theme_color_override("font_color", Color(1.0, 0.75, 0.3))
+	else:
+		mon_conn_status.text = "✅ Connexion OK (%.0f %%)" % (used * 100.0)
+		mon_conn_status.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
+
+	# Infrastructure
+	mon_infra.get("servers", Label.new()).text = "%d" % gm.online_servers
+	mon_infra.get("income", Label.new()).text = "+%.2f $/s" % gm.income_per_sec
+	mon_infra.get("watts", Label.new()).text = "%d W" % gm.total_watts
+	mon_infra.get("temp", Label.new()).text = "%.1f °C" % gm.temperature
+	mon_infra.get("cooling", Label.new()).text = "-%.2f °C/s" % (gm.cooling_total * GameManager.HEAT_PER_SEC)
+	mon_infra.get("clims", Label.new()).text = "%d" % garage.placed_clims.size()
+
+	# Serveurs (liste reconstruite — peu fréquente)
+	for child in mon_servers_box.get_children():
+		child.queue_free()
+	var servers: Array = garage.placed_servers
+	if servers.is_empty():
+		var empty := Label.new()
+		empty.text = "Aucun serveur en ligne. Achète ton premier sur Tech'Occase !"
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.add_theme_font_size_override("font_size", 14)
+		empty.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
+		mon_servers_box.add_child(empty)
+		return
+	for s in servers:
+		mon_servers_box.add_child(_server_monitor_card(s))
+
+
+func _server_monitor_card(s: ServerUnit) -> Control:
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", UITheme.card(10))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	card.add_child(row)
+
+	var icon := TextureRect.new()
+	icon.texture = BakedAssets.item_tex(s.item)
+	icon.custom_minimum_size = Vector2(40, 40)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(icon)
+
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info.add_theme_constant_override("separation", 4)
+	row.add_child(info)
+
+	var name_label := Label.new()
+	name_label.text = str(s.item.get("name", "Serveur"))
+	name_label.add_theme_font_size_override("font_size", 15)
+	info.add_child(name_label)
+
+	var clients_label := Label.new()
+	var stat: String
+	var color: Color
+	if not s.configured():
+		stat = "SANS OS"
+		color = Color(1, 1, 1, 0.5)
+	elif s.is_saturated():
+		stat = "SATURÉ ⚠"
+		color = Color(1.0, 0.4, 0.35)
+	elif GameManager.overheated:
+		stat = "ARRÊT 🔥"
+		color = Color(1.0, 0.4, 0.35)
+	else:
+		stat = "EN LIGNE"
+		color = Color(0.5, 1.0, 0.6)
+	var income_txt := "+%.2f $/s" % s.income_per_sec() if not GameManager.overheated else "+0.00 $/s"
+	clients_label.text = "%s · %d/%d clients · %s" % [
+		stat, s.clients, s.max_clients(), income_txt,
+	]
+	clients_label.add_theme_font_size_override("font_size", 13)
+	clients_label.add_theme_color_override("font_color", color)
+	info.add_child(clients_label)
+
+	# Barre de charge
+	var ratio := float(s.clients) / float(s.max_clients()) if s.max_clients() > 0 else 0.0
+	var bar := _bar(ratio, Color(1.0, 0.6, 0.2) if ratio < 1.0 else Color(1.0, 0.3, 0.25))
+	info.add_child(bar)
+	return card
+
+
+func _bar(value01: float, color: Color) -> ProgressBar:
+	var pb := ProgressBar.new()
+	pb.custom_minimum_size = Vector2(0, 12)
+	pb.max_value = 1.0
+	pb.value = clampf(value01, 0.0, 1.0)
+	pb.show_percentage = false
+	var bg := StyleBoxTexture.new()
+	bg.texture = BakedAssets.tex("bar_bg")
+	bg.texture_margin_left = 3
+	bg.texture_margin_right = 3
+	bg.texture_margin_top = 3
+	bg.texture_margin_bottom = 3
+	pb.add_theme_stylebox_override("background", bg)
+	pb.add_theme_stylebox_override("fill", _bar_fill(color))
+	return pb
+
+
+func _bar_fill(color: Color) -> StyleBoxTexture:
+	var fill := StyleBoxTexture.new()
+	fill.texture = BakedAssets.tex("bar_fill")
+	fill.modulate_color = color
+	fill.texture_margin_left = 3
+	fill.texture_margin_right = 3
+	fill.texture_margin_top = 3
+	fill.texture_margin_bottom = 3
+	return fill
+
+
+# ------------------------------------------------------------------ Boutique
 func _card(item: Dictionary) -> Control:
 	var card := PanelContainer.new()
 	card.add_theme_stylebox_override("panel", UITheme.card(10))
@@ -330,6 +635,11 @@ func _specs(item: Dictionary) -> String:
 			return extra + "À poser · double la capacité des serveurs"
 		"battery":
 			return "Slot batterie d'armoire Pro · -30% de chaleur pour ses serveurs"
+		"clim":
+			return "Refroidit : -%.2f °C/s · consomme %d W · à poser au sol" % [
+				float(item.get("cooling", 0.0)) * GameManager.HEAT_PER_SEC,  # unités de chaleur → °C/s
+				int(item.get("watts", 0)),
+			]
 		"upgrade":
 			return "S'applique immédiatement · +25%% de revenus"
 		"local":
@@ -346,65 +656,77 @@ func _specs(item: Dictionary) -> String:
 
 # ------------------------------------------------------------------ Achats
 func _refresh_cash() -> void:
-	cash_label.text = "💰 %d $" % int(GameManager.cash)
+	if current_page == "monitor":
+		_refresh_monitor()
+		return
+	if cash_label != null:
+		cash_label.text = "💰 %d $" % int(GameManager.cash)
 	for entry in buy_entries:
 		var btn: Button = entry["btn"]
 		var item: Dictionary = entry["item"]
 		btn.disabled = false
 		btn.text = "%d $" % int(item.get("price", 0))
-		# États spéciaux : abo actif / pare-feu possédé
+		# États spéciaux : les achats uniques (abo / pare-feu / locaux) ne se
+	# rachètent pas — désactivés avec un libellé clair (ACTIF / POSSÉDÉ).
 		match item.get("kind", ""):
 			"abo":
 				if item["id"] == GameManager.abo_id:
 					btn.disabled = true
 					btn.text = "ACTIF"
-			"upgrade":
-				if item["id"] == "upgrade_firewall" and GameManager.firewall_owned:
+				elif GameManager.owns(str(item["id"])):
 					btn.disabled = true
-					btn.text = "POSSÉDÉ"
-			"local":
-				if item["id"] == "local_2" and GameManager.location_unlocked:
+					btn.text = "DÉPASSÉ"
+			"upgrade", "local":
+				if GameManager.owns(str(item["id"])):
 					btn.disabled = true
 					btn.text = "POSSÉDÉ"
 
 
 func _flash(text: String) -> void:
-	flash_label.text = text
-	flash_label.visible = true
-	flash_timer.start()
-
-
-func _toolbar_noop() -> void:
-	_flash("Hors ligne pour l'instant 😉 — ce garage n'a qu'un seul site.")
+	if flash_label != null:
+		flash_label.text = text
+		flash_label.visible = true
+		flash_timer.start()
 
 
 func _buy(item: Dictionary) -> void:
 	var price := int(item.get("price", 0))
+	var kind := str(item.get("kind", ""))
+	# Achats uniques : on ne rachète pas un abo / pare-feu / local déjà pris.
+	if kind in ["abo", "upgrade", "local"] and GameManager.owns(str(item["id"])):
+		_flash("⚠ Déjà possédé !")
+		return
+	# Abonnement : pas de downgrade (on ne reprend pas un abo moins bon).
+	if kind == "abo":
+		var cur_tier := ShopCatalog.abo_tier(GameManager.abo_id)
+		var new_tier := ShopCatalog.abo_tier(str(item["id"]))
+		if new_tier < cur_tier:
+			_flash("⚠ Ton abonnement actuel est déjà meilleur !")
+			return
 	if GameManager.cash < price:
 		_flash("Pas assez d'argent ! Il faut %d $." % price)
 		return
 	GameManager.cash -= price
-	match item.get("kind", ""):
-		"server", "furniture", "battery":
+	match kind:
+		"server", "furniture", "battery", "clim":
 			GameManager.deliveries.append(item.duplicate(true))
 			_flash("✓ Commande passée ! Livraison à l'extérieur du garage (porte du bas).")
 		"upgrade":
+			GameManager.mark_owned(str(item["id"]))
 			if item["id"] == "upgrade_firewall":
 				GameManager.firewall_owned = true
 			_flash("✓ Pare-feu installé : ton réseau est protégé contre les attaques !")
 		"local":
+			GameManager.mark_owned(str(item["id"]))
 			if int(item.get("unlock_location", 0)) != 0:
 				GameManager.location_unlocked = true
 			else:
 				GameManager.rack_limit += int(item.get("rack_bonus", 3))
 		"abo":
+			GameManager.mark_owned(str(item["id"]))
 			GameManager.abo_id = item["id"]
 			_flash("✓ Abonnement %s activé !" % item.get("name", ""))
 	if item.get("kind", "") == "local":
-		# Re-rendu complet : le bandeau d'explication et les specs des cartes
-		# affichent la limite d'armoires — il faut les rafraîchir après l'achat.
-		# (_render_page termine par _refresh_cash : l'argent est à jour ; le
-		# flash est émis APRÈS, car le re-rendu recrée le bandeau/flash_label.)
 		_render_page()
 		if int(item.get("unlock_location", 0)) != 0:
 			_flash("✓ LOCAL 2 DÉBLOQUÉ ! La voiture peut maintenant t'y emmener (dans la rue).")

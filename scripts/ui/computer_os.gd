@@ -141,10 +141,21 @@ func _update_clock() -> void:
 
 
 func _menu_btn(text: String) -> Button:
+	## Bouton de la barre du haut (GNOME-like) : texte clair, fond transparent
+	## au repos et léger voile blanc au survol — fini le thème gris par défaut.
 	var b := Button.new()
 	b.text = text
 	b.add_theme_font_size_override("font_size", 13)
-	b.flat = true
+	b.add_theme_color_override("font_color", Color(0.92, 0.95, 1.0))
+	b.add_theme_color_override("font_hover_color", Color(1, 1, 1))
+	b.add_theme_color_override("font_pressed_color", Color(1, 1, 1))
+	# NOTE : PAS de flat = true — un bouton flat en Godot 4 dessine les
+	# variantes flat_* du thème et ignorerait ces overrides. Le normal
+	# transparent donne déjà l'aspect flat, et hover/pressed s'appliquent.
+	b.add_theme_stylebox_override("normal", UITheme.button_normal(Color(1, 1, 1, 0.0)))
+	b.add_theme_stylebox_override("hover", UITheme.button_hover(Color(1, 1, 1, 0.12)))
+	b.add_theme_stylebox_override("pressed", UITheme.button_pressed(Color(1, 1, 1, 0.2)))
+	b.add_theme_stylebox_override("focus", UITheme.button_focus())
 	return b
 
 
@@ -224,8 +235,14 @@ func _build_shutdown() -> void:
 	btn.offset_top = -58.0
 	btn.offset_right = 150.0
 	btn.offset_bottom = -16.0
-	btn.flat = true
 	btn.add_theme_font_size_override("font_size", 14)
+	btn.add_theme_color_override("font_color", Color(0.9, 0.93, 1.0))
+	btn.add_theme_color_override("font_hover_color", Color(1, 1, 1))
+	# Pas de flat = true (voir _menu_btn) : le normal transparent suffit.
+	btn.add_theme_stylebox_override("normal", UITheme.button_normal(Color(1, 1, 1, 0.0)))
+	btn.add_theme_stylebox_override("hover", UITheme.button_hover(Color(1, 1, 1, 0.10)))
+	btn.add_theme_stylebox_override("pressed", UITheme.button_pressed(Color(1, 1, 1, 0.18)))
+	btn.add_theme_stylebox_override("focus", UITheme.button_focus())
 	btn.pressed.connect(close)
 	root.add_child(btn)
 

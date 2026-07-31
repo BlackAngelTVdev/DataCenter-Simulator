@@ -93,8 +93,9 @@ func _draw() -> void:
 	# --- Rendu runtime : images + surcouches dynamiques ---
 	if _body != null:
 		_body.scale = Vector2.ONE * (0.6 if rack != null else 1.0)
+	var stopped := configured() and GameManager.overheated  # serveur éteint (chauffe)
 	if _led != null:
-		var led_name := "led_red" if is_saturated() \
+		var led_name := "led_red" if (is_saturated() or stopped) \
 			else ("led_green" if configured() else "led_grey")
 		_led.texture = BakedAssets.tex(led_name)
 		_led.position = Vector2(-SIZE.x / 2 + 6, -SIZE.y / 2 + 10)
@@ -105,6 +106,8 @@ func _draw() -> void:
 	var label := "%d/%d" % [clients, max_clients()]
 	if not configured():
 		label = "SANS OS"
+	elif stopped:
+		label = "ARRÊT 🔥"
 	else:
 		label = OSList.hosting_short(os_id) + " " + label
 	draw_string(font, Vector2(-SIZE.x / 2 + 11, -SIZE.y / 2 + 13), label, \

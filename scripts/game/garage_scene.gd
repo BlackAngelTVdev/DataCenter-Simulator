@@ -29,7 +29,6 @@ const GARAGE_SCENE := "res://scenes/game/garage.tscn"
 const LOCAL2_SCENE := "res://scenes/game/local2.tscn"
 
 const TILE := 32
-const HEAT_PER_SEC := 0.02
 const CLIENT_FILL_CHANCE := 0.6
 const INTERACT_RANGE := 62.0
 const PLACE_RANGE := 2  # rayon de pose (en cases) autour du joueur
@@ -85,11 +84,13 @@ var cable_layer: Node2D
 var crates_layer: Node2D
 var placed_servers: Array = []
 var placed_racks: Array = []
+var placed_clims: Array = []
 var occupied_cells := {}
 var crates: Array = []
 var tick := 0
 var bandwidth_warn_tick := 0
 var _just_teleported := false
+var _overheat_announced := false  # toast de surchauffe déjà affiché (anti-spam)
 
 
 # ------------------------------------------------------------------ Config par local
@@ -525,6 +526,8 @@ func _floor_prompt() -> String:
 			return "Clic gauche — Poser l'armoire (E fonctionne aussi)"
 		"battery":
 			return "Clic gauche — Installer la batterie contre une armoire (E fonctionne aussi)"
+		"clim":
+			return "Clic gauche — Poser le climatiseur (E fonctionne aussi)"
 	return ""
 
 
@@ -772,6 +775,7 @@ func _teleport(target: int) -> void:
 
 func _apply_offline_income() -> void:
 	## Les serveurs « travaillent » pendant l'absence : revenus de rattrapage.
+	## (Pas de rattrapage en surchauffe : les serveurs sont arrêtés.)
 	var now := Time.get_unix_time_from_system()
 	var last := GameManager.last_switch_ts
 	GameManager.last_switch_ts = now
@@ -779,9 +783,10 @@ func _apply_offline_income() -> void:
 		return
 	var elapsed := now - last
 	var income := 0.0
-	for s in placed_servers:
-		if s.configured():
-			income += s.income_per_sec()
+	if not GameManager.overheated:
+		for s in placed_servers:
+			if s.configured():
+				income += s.income_per_sec()
 	if income > 0.0 and elapsed >= 1:
 		var gained := income * elapsed
 		GameManager.cash += gained
@@ -795,9 +800,12 @@ func world_placed() -> Dictionary:
 	## qui reste attachée à SON local : garage et Data Hall ont chacun LEURS
 	## serveurs (GameManager.worlds). Utilisée par la téléportation ET par
 	## GameSave.persist.
+	## Sérialisation du monde PLACÉ du local courant : racks, serveurs,
+	## CLIMATISEURS, établi Pro, étagère — sans le colis porté.
 	var data := {
 		"racks": [],
 		"servers": [],
+		"clims": [],
 		"bench": [],
 		"storage": [],
 	}
@@ -806,6 +814,11 @@ func world_placed() -> Dictionary:
 			"item": rack.item.duplicate(true),
 			"cell": [rack.cell.x, rack.cell.y],
 			"battery": rack.battery.duplicate(true),
+		})
+	for c in placed_clims:
+		data["clims"].append({
+			"item": c.item.duplicate(true),
+			"cell": [c.cell.x, c.cell.y],
 		})
 	for s in placed_servers:
 		data["servers"].append({
@@ -851,6 +864,13 @@ func restore_world(data: Dictionary) -> void:
 		var bat: Variant = rack_dict.get("battery", {})
 		if typeof(bat) == TYPE_DICTIONARY and not (bat as Dictionary).is_empty():
 			rack.mount_battery(GameSave.restore_item(bat))
+	# Puis les climatiseurs (ils refroidissent le local — jamais perdus)
+	for cd in data.get("clims", []):
+		if typeof(cd) != TYPE_DICTIONARY:
+			continue
+		var c_dict: Dictionary = cd
+		var c_orig := GameSave.cell_from(c_dict.get("cell", []))
+		_spawn_clim(GameSave.restore_item(c_dict.get("item", {})), _restore_cell(c_orig))
 	# Puis les serveurs (montés → ils suivent LEUR armoire, relocalisée ou non)
 	for sd in data.get("servers", []):
 		if typeof(sd) != TYPE_DICTIONARY:
@@ -983,11 +1003,15 @@ func _place_at(cell: Vector2i) -> bool:
 	if kind == "server" and not item.has("os"):
 		hud.toast("Installe d'abord un OS à l'établi !")
 		return true
-	if kind != "server" and kind != "furniture" and kind != "battery":
+	if kind != "server" and kind != "furniture" and kind != "battery" and kind != "clim":
 		return false
 	# Limite d'armoires (propre à chaque local).
 	if kind == "furniture" and placed_racks.size() >= _loc_rack_limit():
 		hud.toast("Le %s est plein (%d armoires max) ! Achète un nouveau local sur Tech'Occase." % [_loc_name(), _loc_rack_limit()])
+		return true
+	# Limite de climatiseurs (l'électricité a des limites !)
+	if kind == "clim" and placed_clims.size() >= GameManager.clim_limit:
+		hud.toast("Trop de climatiseurs dans ce local (%d max) ! L'électricité ne suit plus." % GameManager.clim_limit)
 		return true
 	if not _in_bounds(cell):
 		hud.toast("Hors du bâtiment !")
@@ -1031,6 +1055,8 @@ func _place_at(cell: Vector2i) -> bool:
 		return true
 	if kind == "server":
 		_spawn_server(item, cell)
+	elif kind == "clim":
+		_spawn_clim(item, cell)
 	else:
 		_spawn_rack(item, cell)
 	player.carried_item = {}
@@ -1044,13 +1070,13 @@ func _in_bounds(cell: Vector2i) -> bool:
 
 
 func _carried_placable() -> bool:
-	## L'objet porté peut-il être posé ? (serveur AVEC OS, armoire ou batterie)
+	## L'objet porté peut-il être posé ? (serveur AVEC OS, armoire, batterie ou clim)
 	if not player.is_carrying():
 		return false
 	var kind := str(player.carried_item.get("kind", ""))
 	if kind == "server":
 		return player.carried_item.has("os")
-	return kind == "furniture" or kind == "battery"
+	return kind == "furniture" or kind == "battery" or kind == "clim"
 
 
 func _cell_valid_for(item: Dictionary, cell: Vector2i) -> bool:
@@ -1064,6 +1090,8 @@ func _cell_valid_for(item: Dictionary, cell: Vector2i) -> bool:
 	var kind := str(item.get("kind", ""))
 	if kind == "furniture":
 		return placed_racks.size() < _loc_rack_limit() and _can_place(cell, kind)
+	if kind == "clim":
+		return placed_clims.size() < GameManager.clim_limit and _can_place(cell, kind)
 	if kind == "battery":
 		return _adjacent_rack_battery(cell) != null or _rack_battery_at(cell) != null
 	if kind == "server":
@@ -1180,6 +1208,19 @@ func _spawn_rack(item: Dictionary, cell: Vector2i) -> RackUnit:
 	return r
 
 
+func _spawn_clim(item: Dictionary, cell: Vector2i) -> ClimUnit:
+	var key := Vector2i(cell.x, cell.y)
+	var c := ClimUnit.new()
+	c.item = item.duplicate(true)
+	c.name = "Clim_%d_%d" % [cell.x, cell.y]
+	c.cell = cell
+	c.position = _cell_center(cell)
+	units_layer.add_child(c)
+	placed_clims.append(c)
+	occupied_cells[key] = c
+	return c
+
+
 func _create_cable(from: Vector2, to: Vector2, col: Color) -> Node2D:
 	var c := Cable.new()
 	c.setup(from, to, col)
@@ -1244,15 +1285,22 @@ func _recompute_stats() -> void:
 	var total_income := 0.0
 	var total_heat := 0.0
 	var total_watts := 0
+	var cooling := 0.0
 	for s in placed_servers:
 		total_watts += int(s.item.get("watts", 0))
 		if s.configured():
 			total_clients += s.clients
 			total_income += s.income_per_sec()
 			total_heat += s.heat()
+	for c in placed_clims:
+		cooling += c.cooling()
+		# Les clims consomment de l'électricité (elles apparaissent sur les factures)
+		total_watts += int(c.item.get("watts", 0))
 	GameManager.total_clients = total_clients
 	GameManager.income_per_sec = total_income  # pare-feu = défense, pas de boost
 	GameManager.heat_total = total_heat
+	GameManager.cooling_total = cooling
+	GameManager.overheated = GameManager.temperature >= GameManager.CRITICAL_TEMP
 	GameManager.online_servers = _online_servers()
 	GameManager.total_watts = total_watts
 
@@ -1266,14 +1314,27 @@ func _on_tick() -> void:
 		if s.configured():
 			total_clients += s.clients
 
-	# Les clients arrivent (limités par les slots + la bande passante)
-	for s in placed_servers:
-		if not s.configured():
-			continue
-		if s.clients < s.max_clients() and total_clients < bw and randf() < CLIENT_FILL_CHANCE:
-			s.clients += 1
-			total_clients += 1
-			s.queue_redraw()
+	# Surchauffe ? Au-delà de 50 °C TOUS les serveurs s'arrêtent : plus de
+	# clients qui arrivent, plus de revenus. Il faut des clims pour refroidir.
+	var overheat := GameManager.temperature >= GameManager.CRITICAL_TEMP
+	GameManager.overheated = overheat
+	if overheat and not _overheat_announced:
+		_overheat_announced = true
+		hud.toast("🔥 %s à %.0f °C : les serveurs S'ARRÊTENT ! Installe des climatiseurs (Tech'Occase)." % [_loc_name(), GameManager.temperature])
+	elif not overheat and _overheat_announced:
+		_overheat_announced = false
+		hud.toast("❄️ Température redescendue : les serveurs redémarrent !")
+
+	# Les clients arrivent (limités par les slots + la bande passante) — sauf
+	# en cas de surchauffe : les serveurs sont éteints, personne ne se connecte.
+	if not overheat:
+		for s in placed_servers:
+			if not s.configured():
+				continue
+			if s.clients < s.max_clients() and total_clients < bw and randf() < CLIENT_FILL_CHANCE:
+				s.clients += 1
+				total_clients += 1
+				s.queue_redraw()
 
 	# Alertes de saturation
 	for s in placed_servers:
@@ -1290,22 +1351,33 @@ func _on_tick() -> void:
 	var total_income := 0.0
 	var total_heat := 0.0
 	var total_watts := 0
+	var cooling := 0.0
 	var has_free_slots := false
 	for s in placed_servers:
 		total_watts += int(s.item.get("watts", 0))
-		if not s.configured():
-			continue
-		total_income += s.income_per_sec()
-		total_heat += s.heat()
-		if s.clients < s.max_clients():
-			has_free_slots = true
+		if s.configured():
+			if not overheat:
+				total_income += s.income_per_sec()
+				total_heat += s.heat()
+			if s.clients < s.max_clients():
+				has_free_slots = true
+	for c in placed_clims:
+		cooling += c.cooling()
+		# Les clims consomment de l'électricité (elles apparaissent sur les factures)
+		total_watts += int(c.item.get("watts", 0))
+	GameManager.cooling_total = cooling
 
 	var income := total_income  # le pare-feu n'augmente pas les revenus
 	# Les FACTURES (électricité + mensualité fibre) sont déduites du solde :
 	# elles apparaissent sur le bureau (BillsUI) — économie plus réaliste.
 	var costs := GameManager.electric_cost_per_sec() + GameManager.abo_fee_per_sec()
 	GameManager.cash += income - costs
-	GameManager.temperature += total_heat * HEAT_PER_SEC
+	# Température : chaleur des serveurs − refroidissement des clims, plus une
+	# petite dissipation passive (la pièce finit toujours par refroidir un peu
+	# — évite le softlock à 400 °C sans clim). Jamais sous la température ambiante.
+	var passive := 1.0  # équivaut à une petite clim gratuite (sécurité anti-blocage)
+	GameManager.temperature = maxf(GameManager.TEMP_AMBIANT, \
+		GameManager.temperature + (total_heat - cooling - passive) * GameManager.HEAT_PER_SEC)
 	GameManager.total_clients = total_clients
 	GameManager.income_per_sec = income
 	GameManager.heat_total = total_heat

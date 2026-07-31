@@ -36,6 +36,11 @@ static func rack_tex(item: Dictionary) -> Texture2D:
 	return t if t != null else tex("block")
 
 
+static func clim_tex(item: Dictionary) -> Texture2D:
+	var t := tex("clim_" + str(item.get("id", "")))
+	return t if t != null else tex("block")
+
+
 static func item_tex(item: Dictionary) -> Texture2D:
 	## Petite icône « objet » (colis / contenu d'emplacement) pour un item.
 	var kind := str(item.get("kind", ""))
@@ -44,4 +49,6 @@ static func item_tex(item: Dictionary) -> Texture2D:
 			return tex("server_" + str(item.get("id", "")))
 		"furniture":
 			return tex("rack_" + str(item.get("id", "")))
+		"clim":
+			return tex("clim_" + str(item.get("id", "")))
 	return tex("block")
