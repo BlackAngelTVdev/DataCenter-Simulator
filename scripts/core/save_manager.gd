@@ -48,25 +48,6 @@ static func save_data(slot: int, data: Dictionary) -> bool:
 	return true
 
 
-static func save_game(slot: int, money: float, buildings: Dictionary) -> bool:
-	## Compatibilité : ancien format « bâtiments » (jeu d'origine).
-	slot = clampi(slot, 0, SLOT_COUNT - 1)
-	var building_list := []
-	for cell: Vector2i in buildings:
-		var b = buildings[cell]
-		building_list.append({"id": b.id, "cell": [cell.x, cell.y]})
-	var data := {
-		"money": money,
-		"buildings": building_list,
-		"saved_at": Time.get_unix_time_from_system(),
-	}
-	return save_data(slot, data)
-
-
-static func load_game(slot: int) -> Dictionary:
-	return slot_meta(slot)
-
-
 static func latest_slot() -> int:
 	# Retourne l'emplacement de la sauvegarde la plus récente (saved_at max), ou -1.
 	var best := -1

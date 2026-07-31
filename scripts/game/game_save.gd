@@ -6,8 +6,6 @@ class_name GameSave
 ## produit par GarageScene.world_placed() et restauré par restore_world() —
 ## la même paire sert à la téléportation entre les deux locaux (chaque local
 ## garde SON monde ; seul le colis porté est global).
-## Les anciennes fonctions save_game/load_game (jeu de bâtiments) sont
-## conservées pour la compatibilité de l'ancien code (main.gd).
 
 const SAVE_VERSION := 3
 
@@ -176,34 +174,3 @@ static func cell_from(arr: Variant) -> Vector2i:
 	var a: Array = arr
 	return Vector2i(int(a[0]), int(a[1]))
 
-
-# ------------------------------------------------------------------ Compatibilité ancien jeu (bâtiments)
-static func save_game(economy: Economy, grid: GridSystem) -> bool:
-	var slot := SaveManager.current_slot
-	if slot < 0:
-		slot = SaveManager.first_free_slot()
-	return SaveManager.save_game(slot, economy.money, grid.buildings)
-
-
-static func load_game(economy: Economy, grid: GridSystem, placer: BuildingPlacer) -> void:
-	var slot := SaveManager.pending_slot
-	SaveManager.pending_slot = -1  # consommé : éviter les rechargements parasites
-	if slot < 0:
-		SaveManager.current_slot = -1  # nouvelle partie : ne pas écraser un ancien slot
-		return
-	var data := SaveManager.load_game(slot)
-	if data.is_empty():
-		return
-	SaveManager.current_slot = slot
-	economy.money = float(data.get("money", economy.money))
-	var saved_buildings: Array = data.get("buildings", [])
-	for entry in saved_buildings:
-		if typeof(entry) != TYPE_DICTIONARY:
-			continue
-		var bd: Dictionary = entry
-		var def_id: String = bd.get("id", "")
-		var cell_arr: Array = bd.get("cell", [])
-		if cell_arr.size() != 2:
-			continue
-		var cell := Vector2i(int(cell_arr[0]), int(cell_arr[1]))
-		placer.place_loaded(def_id, cell)
