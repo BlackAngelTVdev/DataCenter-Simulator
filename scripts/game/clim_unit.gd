@@ -3,7 +3,7 @@ extends StaticBody2D
 ## Un climatiseur posé au sol dans un local : refroidit la pièce (chaque
 ## unité soustrait sa puissance « cooling » à la chaleur des serveurs).
 ## Sans clims, la température grimpe jusqu'à l'ARRÊT des serveurs (50 °C).
-## Le CORPS est une IMAGE cuite (assets/images/baked/clim_*.png).
+## Le CORPS est une IMAGE cuite (assets/images/baked/clims/clim_*.png).
 ## bake_mode = rendu procédural complet (utilisé par tools/bake_assets).
 
 const SIZE := Vector2(34, 24)

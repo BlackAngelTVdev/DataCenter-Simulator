@@ -2,7 +2,7 @@ class_name ServerUnit
 extends StaticBody2D
 ## Un serveur posé dans le garage : héberge des clients, génère des revenus,
 ## produit de la chaleur, et affiche sa saturation. Bloque le passage.
-## Le CORPS est une IMAGE cuite (assets/images/baked/server_*.png) ; seules
+## Le CORPS est une IMAGE cuite (assets/images/baked/servers/server_*.png) ; seules
 ## les infos dynamiques (LED, texte, bulle « SATURÉ ») sont dessinées.
 ## bake_mode = true : rendu procédural complet (utilisé par tools/bake_assets).
 

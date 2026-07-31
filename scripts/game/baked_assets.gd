@@ -9,10 +9,41 @@ const DIR := "res://assets/images/baked/"
 static var _cache := {}
 
 
+## Sous-dossier de chaque image selon sa catégorie (tri des assets) :
+## serveurs, racks, clims, interactables, réseaux, UI, OS, mondes…
+## Le nom peut arriver avec ou sans l'extension ".png".
+static func subdir_for(name: String) -> String:
+	var base := name.get_basename() if name.ends_with(".png") else name
+	if base.begins_with("server_"):
+		return "servers/"
+	if base.begins_with("rack_") or base == "battery_strip":
+		return "racks/"
+	if base.begins_with("clim_"):
+		return "clims/"
+	if base.begins_with("bg_"):
+		return "worlds/"
+	if base.begins_with("wallpaper_") or base.begins_with("icon_"):
+		return "os/"
+	if base.begins_with("led_") or base in ["cable_seg", "cable_glow", "bubble_sature"]:
+		return "network/"
+	if base in ["bench_garage", "bench_pro", "computer", "delivery", "car", "desk", "storage", "crate", "parcel"]:
+		return "interactables/"
+	if base == "player":
+		return "player/"
+	if base in ["bar_bg", "bar_fill", "knob"]:
+		return "ui/"
+	return "misc/"
+
+
+static func path_for(name: String) -> String:
+	## Chemin res:// complet d'une texture (nom sans extension).
+	return DIR + subdir_for(name) + name + ".png"
+
+
 static func tex(name: String) -> Texture2D:
 	## Texture cuite par nom de fichier (sans l'extension).
 	if not _cache.has(name):
-		var t: Texture2D = load(DIR + name + ".png")
+		var t: Texture2D = load(path_for(name))
 		if t == null:
 			push_warning("BakedAssets : texture introuvable -> " + name)
 			t = _blank()
