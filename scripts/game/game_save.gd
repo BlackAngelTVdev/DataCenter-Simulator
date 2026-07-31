@@ -1,0 +1,193 @@
+class_name GameSave
+## Sérialisation de l'état du jeu (cash, température, abonnement, pare-feu,
+## local, livraisons, colis porté, serveurs posés avec OS/clients, armoires
+## avec serveurs montés + batterie, baies de l'établi Pro) via SaveManager
+## (emplacements JSON). Le format du MONDE (racks/servers/bench/storage) est
+## produit par GarageScene.world_placed() et restauré par restore_world() —
+## la même paire sert à la téléportation entre les deux locaux (chaque local
+## garde SON monde ; seul le colis porté est global).
+## Les anciennes fonctions save_game/load_game (jeu de bâtiments) sont
+## conservées pour la compatibilité de l'ancien code (main.gd).
+
+const SAVE_VERSION := 3
+
+
+# ------------------------------------------------------------------ Sauvegarde
+static func persist(garage: GarageScene) -> bool:
+	## Sauvegarde l'état complet : les DEUX mondes placés (garage + Data Hall)
+	## et le colis porté (global, il voyage avec le joueur). Chaque local garde
+	## SES serveurs/armoires/étagères — deux endroits bien distincts.
+	GameManager.worlds[garage.location_id] = garage.world_placed()
+	GameManager.carried = garage.player.carried_item.duplicate(true)
+	var data := {
+		"version": SAVE_VERSION,
+		"worlds": {
+			"0": GameManager.worlds.get(0, {}),
+			"1": GameManager.worlds.get(1, {}),
+		},
+		"carried": GameManager.carried.duplicate(true),
+		"money": GameManager.cash,
+		"temperature": GameManager.temperature,
+		"abo_id": GameManager.abo_id,
+		"firewall_owned": GameManager.firewall_owned,
+		"rack_limit": GameManager.rack_limit,
+		"location": GameManager.location,
+		"location_unlocked": GameManager.location_unlocked,
+		"deliveries": GameManager.deliveries.duplicate(true),
+		"pos": {
+			"0": _vec_to_arr(GameManager.player_pos.get(0, Vector2.ZERO)),
+			"1": _vec_to_arr(GameManager.player_pos.get(1, Vector2.ZERO)),
+		},
+		"saved_at": Time.get_unix_time_from_system(),
+	}
+
+	var slot := SaveManager.current_slot
+	if slot < 0:
+		slot = SaveManager.first_free_slot()
+	return SaveManager.save_data(slot, data)
+
+
+# ------------------------------------------------------------------ Chargement
+static func load_into(garage: GarageScene) -> void:
+	var slot := SaveManager.pending_slot
+	SaveManager.pending_slot = -1  # consommé : évite les rechargements parasites
+	if slot < 0:
+		SaveManager.current_slot = -1
+		GameManager.reset()
+		return
+
+	var data := SaveManager.slot_meta(slot)
+	# On accepte v2 (monde unique, migré) ET v3 (mondes par local) : le garde
+	# < 2 rejette seulement les formats plus anciens que le monde partagé.
+	if data.is_empty() or int(data.get("version", 1)) < 2:
+		SaveManager.current_slot = -1
+		GameManager.reset()
+		return
+
+	SaveManager.current_slot = slot
+
+	# État global
+	GameManager.cash = float(data.get("money", GameManager.START_CASH))
+	GameManager.temperature = float(data.get("temperature", 20.0))
+	GameManager.abo_id = str(data.get("abo_id", GameManager.DEFAULT_ABO))
+	GameManager.firewall_owned = bool(data.get("firewall_owned", false))
+	GameManager.rack_limit = int(data.get("rack_limit", 3))
+	GameManager.location = int(data.get("location", 0))
+	GameManager.location_unlocked = bool(data.get("location_unlocked", false))
+	_restore_pos(data.get("pos", {}))
+
+	var deliveries: Variant = data.get("deliveries", [])
+	if typeof(deliveries) == TYPE_ARRAY:
+		GameManager.deliveries.clear()
+		for d in deliveries:
+			GameManager.deliveries.append(restore_item(d))
+
+	# Mondes par local (v3). Ancienne sauvegarde (v2, monde unique) : on
+	# l'affecte au local de la sauvegarde, l'autre local démarre vide.
+	var worlds: Variant = data.get("worlds", {})
+	if typeof(worlds) == TYPE_DICTIONARY and not (worlds as Dictionary).is_empty():
+		var wd: Dictionary = worlds
+		GameManager.worlds = {
+			0: wd.get("0", {}),
+			1: wd.get("1", {}),
+		}
+	else:
+		var flat := {}
+		for k in ["racks", "servers", "bench", "storage"]:
+			if data.has(k):
+				flat[k] = data[k]
+		GameManager.worlds = {0: {}, 1: {}}
+		GameManager.worlds[GameManager.location] = flat
+
+	# Colis porté (global) : les mondes ne le contiennent plus (v3).
+	var carried: Variant = data.get("carried", {})
+	if typeof(carried) == TYPE_DICTIONARY and not (carried as Dictionary).is_empty():
+		GameManager.carried = restore_item(carried)
+	else:
+		GameManager.carried = {}
+
+	# Monde du local courant (armoires → serveurs → établi Pro → étagère)
+	garage.restore_world(GameManager.worlds.get(GameManager.location, {}))
+	garage.player.carried_item = GameManager.carried.duplicate(true)
+
+	# NB : les rafraîchissements HUD/colis sont faits par garage._ready après
+	# load_into (qui couvre aussi le chemin « nouvelle partie »).
+
+
+static func _restore_pos(pos_data: Variant) -> void:
+	GameManager.player_pos = {0: Vector2.ZERO, 1: Vector2.ZERO}
+	if typeof(pos_data) != TYPE_DICTIONARY:
+		return
+	for loc_str in pos_data:
+		var arr: Variant = pos_data[loc_str]
+		if typeof(arr) == TYPE_ARRAY and (arr as Array).size() == 2:
+			var a: Array = arr
+			GameManager.player_pos[int(loc_str)] = Vector2(float(a[0]), float(a[1]))
+
+
+static func _vec_to_arr(v: Vector2) -> Array:
+	return [v.x, v.y]
+
+
+# ------------------------------------------------------------------ Helpers
+static func restore_item(raw: Variant) -> Dictionary:
+	## Repart de la fiche catalogue (id) pour retrouver des valeurs typées
+	## (Color, nombres) propres — le JSON ne garde pas les types Color.
+	var item: Dictionary = raw if typeof(raw) == TYPE_DICTIONARY else {}
+	if item.is_empty():
+		return {}
+	var base := ShopCatalog.get_item(str(item.get("id", "")))
+	if not base.is_empty():
+		if item.has("os"):
+			base["os"] = item["os"]
+			base["os_name"] = item.get("os_name", "")
+		return base
+	return _fix_color(item)
+
+
+static func _fix_color(item: Dictionary) -> Dictionary:
+	var c: Variant = item.get("color")
+	if typeof(c) == TYPE_ARRAY and (c as Array).size() >= 3:
+		var a: Array = c
+		var alpha := float(a[3]) if a.size() > 3 else 1.0
+		item["color"] = Color(float(a[0]), float(a[1]), float(a[2]), alpha)
+	return item
+
+
+static func cell_from(arr: Variant) -> Vector2i:
+	if typeof(arr) != TYPE_ARRAY or (arr as Array).size() != 2:
+		return Vector2i(1, 1)
+	var a: Array = arr
+	return Vector2i(int(a[0]), int(a[1]))
+
+
+# ------------------------------------------------------------------ Compatibilité ancien jeu (bâtiments)
+static func save_game(economy: Economy, grid: GridSystem) -> bool:
+	var slot := SaveManager.current_slot
+	if slot < 0:
+		slot = SaveManager.first_free_slot()
+	return SaveManager.save_game(slot, economy.money, grid.buildings)
+
+
+static func load_game(economy: Economy, grid: GridSystem, placer: BuildingPlacer) -> void:
+	var slot := SaveManager.pending_slot
+	SaveManager.pending_slot = -1  # consommé : éviter les rechargements parasites
+	if slot < 0:
+		SaveManager.current_slot = -1  # nouvelle partie : ne pas écraser un ancien slot
+		return
+	var data := SaveManager.load_game(slot)
+	if data.is_empty():
+		return
+	SaveManager.current_slot = slot
+	economy.money = float(data.get("money", economy.money))
+	var saved_buildings: Array = data.get("buildings", [])
+	for entry in saved_buildings:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var bd: Dictionary = entry
+		var def_id: String = bd.get("id", "")
+		var cell_arr: Array = bd.get("cell", [])
+		if cell_arr.size() != 2:
+			continue
+		var cell := Vector2i(int(cell_arr[0]), int(cell_arr[1]))
+		placer.place_loaded(def_id, cell)
