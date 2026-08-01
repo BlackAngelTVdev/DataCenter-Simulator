@@ -11,6 +11,12 @@ const DEFAULT_ABO := "abo_1g"
 const CRITICAL_TEMP := 50.0
 const TEMP_AMBIANT := 20.0
 
+## Capacité du PARE-FEU Forteresse (clients protégés simultanément). Au DATA
+## HALL (local 2), au-delà de cette capacité le pare-feu sature : une partie
+## des clients n'est plus protégée pendant une attaque DDoS. Au garage, le
+## pare-feu protège sans limite (gestion chill).
+const FIREWALL_CAPACITY := 300
+
 ## Facteur de conversion chaleur/refroidissement : °C par seconde.
 ## Source unique : l'affichage (shop, monitor, factures) l'utilise aussi.
 const HEAT_PER_SEC := 0.02
@@ -222,6 +228,11 @@ func server_stopped(s: ServerUnit) -> bool:
 	if not s.configured():
 		return false
 	if s.rack != null and not s.rack.has_switch():
+		return true
+	# DATA HALL : gestion réseau COMPLEXE — le switch a des PORTS limités, les
+	# derniers serveurs montés au-delà de la capacité ne sont pas branchés.
+	# Au GARAGE, pas de limite de ports (chill) : le switch suffit.
+	if location == 1 and s.rack != null and s.rack.port_exhausted_for(s):
 		return true
 	if overheated:
 		return true
