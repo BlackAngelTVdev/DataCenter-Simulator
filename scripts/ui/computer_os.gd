@@ -7,6 +7,7 @@ extends CanvasLayer
 var root: Control
 var browser: OSBrowser
 var terminal: OSTerminal
+var mail: MailUI
 var clock_label: Label
 var toast_label: Label
 var toast_timer: Timer
@@ -105,6 +106,10 @@ func _build_top_bar() -> void:
 	term_btn.pressed.connect(_open_terminal)
 	hb.add_child(term_btn)
 
+	var mail_btn := _menu_btn("Mail")
+	mail_btn.pressed.connect(_open_mail)
+	hb.add_child(mail_btn)
+
 	if premium:
 		var pro := Label.new()
 		pro.text = "Serveur BianOS Pro"
@@ -172,6 +177,7 @@ func _build_icons() -> void:
 
 	vb.add_child(_icon_btn("Renard", _open_browser))
 	vb.add_child(_icon_btn("Terminal", _open_terminal))
+	vb.add_child(_icon_btn("Mail", _open_mail))
 	var trash := _icon_btn("Corbeille", func() -> void: toast("Corbeille vide. Déso."))
 	vb.add_child(trash)
 
@@ -182,6 +188,8 @@ func _icon_tex_for(text: String) -> String:
 			return "icon_browser"
 		"Terminal":
 			return "icon_terminal"
+		"Mail":
+			return "icon_mail"
 	return "icon_trash"
 
 
@@ -228,6 +236,13 @@ func _build_windows() -> void:
 	terminal.visible = false
 	terminal.closed.connect(func() -> void: terminal.visible = false)
 	root.add_child(terminal)
+
+	mail = MailUI.new()
+	mail.name = "MailWindow"
+	mail.position = Vector2(460, 160)
+	mail.visible = false
+	mail.closed.connect(func() -> void: mail.visible = false)
+	root.add_child(mail)
 
 
 func _build_shutdown() -> void:
@@ -294,6 +309,14 @@ func _open_terminal() -> void:
 	_center_window(terminal)
 	terminal.visible = true
 	terminal.input.grab_focus.call_deferred()
+
+
+func _open_mail() -> void:
+	# Re-rafraîchit la liste (les e-mails arrivent selon l'activité des
+	# clients) puis centre la fenêtre.
+	mail.refresh()
+	_center_window(mail)
+	mail.visible = true
 
 
 func _center_window(win: Control) -> void:
