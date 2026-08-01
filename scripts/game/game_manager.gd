@@ -106,6 +106,22 @@ var income_per_sec := 0.0
 var heat_total := 0.0
 var online_servers := 0
 
+## --- Succès / trophées ---
+## Succès débloqués (id -> true). Consultables dans le panneau Succès du PC.
+var achievements := {}
+## Serveurs posés/montés au total (compteur du succès « Premier serveur »).
+var servers_placed_total := 0
+## Nombre total de chats vus (visites du chat du quartier, succès « Vu 5 chats »).
+var cats_seen := 0
+## Une attaque DDoS a-t-elle déjà été subie (succès « Vainqueur d'un DDoS ») ?
+var ddos_survived := false
+
+## --- Contrats d'entreprise ---
+## Contrats signés (id -> true) via la page « Contrats » du navigateur Renard :
+## revenus GARANTIS par mois SI les exigences sont remplies (serveurs dédiés,
+## clims, armoires…), sinon pénalité. Voir data/enterprise_contracts.gd.
+var enterprise_contracts := {}
+
 
 func reset() -> void:
 	## Nouvelle partie : on repart de zéro.
@@ -142,6 +158,11 @@ func reset() -> void:
 	heat_total = 0.0
 	online_servers = 0
 	total_watts = 0
+	achievements = {}
+	servers_placed_total = 0
+	cats_seen = 0
+	ddos_survived = false
+	enterprise_contracts = {}
 
 
 func electric_cost_per_sec() -> float:

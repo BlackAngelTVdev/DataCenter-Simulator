@@ -8,6 +8,7 @@ var root: Control
 var browser: OSBrowser
 var terminal: OSTerminal
 var mail: MailUI
+var achievements: AchievementsUI
 var clock_label: Label
 var toast_label: Label
 var toast_timer: Timer
@@ -110,6 +111,10 @@ func _build_top_bar() -> void:
 	mail_btn.pressed.connect(_open_mail)
 	hb.add_child(mail_btn)
 
+	var trophy_btn := _menu_btn("Succès")
+	trophy_btn.pressed.connect(_open_achievements)
+	hb.add_child(trophy_btn)
+
 	if premium:
 		var pro := Label.new()
 		pro.text = "Serveur BianOS Pro"
@@ -178,6 +183,7 @@ func _build_icons() -> void:
 	vb.add_child(_icon_btn("Renard", _open_browser))
 	vb.add_child(_icon_btn("Terminal", _open_terminal))
 	vb.add_child(_icon_btn("Mail", _open_mail))
+	vb.add_child(_icon_btn("Succès", _open_achievements))
 	var trash := _icon_btn("Corbeille", func() -> void: toast("Corbeille vide. Déso."))
 	vb.add_child(trash)
 
@@ -190,6 +196,8 @@ func _icon_tex_for(text: String) -> String:
 			return "icon_terminal"
 		"Mail":
 			return "icon_mail"
+		"Succès":
+			return "icon_trophy"
 	return "icon_trash"
 
 
@@ -243,6 +251,13 @@ func _build_windows() -> void:
 	mail.visible = false
 	mail.closed.connect(func() -> void: mail.visible = false)
 	root.add_child(mail)
+
+	achievements = AchievementsUI.new()
+	achievements.name = "AchievementsWindow"
+	achievements.position = Vector2(380, 140)
+	achievements.visible = false
+	achievements.closed.connect(func() -> void: achievements.visible = false)
+	root.add_child(achievements)
 
 
 func _build_shutdown() -> void:
@@ -317,6 +332,13 @@ func _open_mail() -> void:
 	mail.refresh()
 	_center_window(mail)
 	mail.visible = true
+
+
+func _open_achievements() -> void:
+	# Rafraîchit l'état (les succès tombent pendant qu'on joue).
+	achievements.refresh()
+	_center_window(achievements)
+	achievements.visible = true
 
 
 func _center_window(win: Control) -> void:

@@ -111,6 +111,7 @@ var crates_layer: Node2D
 var placed_servers: Array = []
 var placed_racks: Array = []
 var placed_clims: Array = []
+var placed_decos: Array = []
 var occupied_cells := {}
 var crates: Array = []
 var tick := 0
@@ -678,6 +679,8 @@ func _floor_prompt() -> String:
 			return "Clic gauche — Installer la batterie contre une armoire (E fonctionne aussi)"
 		"clim":
 			return "Clic gauche — Poser le climatiseur (E fonctionne aussi)"
+		"decor":
+			return "Clic gauche — Poser la déco (E fonctionne aussi)"
 		"catfood":
 			return "E — Verser la nourriture dans la gamelle (près de l'étagère)"
 	return ""
@@ -1010,6 +1013,12 @@ func _apply_offline_income() -> void:
 	# Les contrats clients (revenus GARANTIS par mois) s'accumulent aussi
 	# pendant l'absence — c'est leur promesse.
 	income += GameManager.contract_income_per_sec()
+	# Les contrats D'ENTREPRISE aussi (revenu garanti ou pénalité selon les
+	# exigences, évaluées sur l'état actuel du local au retour).
+	for cid in GameManager.enterprise_contracts:
+		var ent := EnterpriseContract.get_contract(str(cid))
+		if not ent.is_empty():
+			income += EnterpriseContract.income_per_sec(ent, self)
 	if income > 0.0 and elapsed >= 1:
 		var gained := income * elapsed
 		GameManager.cash += gained
@@ -1029,6 +1038,7 @@ func world_placed() -> Dictionary:
 		"racks": [],
 		"servers": [],
 		"clims": [],
+		"decos": [],
 		"bench": [],
 		"storage": [],
 	}
@@ -1042,6 +1052,11 @@ func world_placed() -> Dictionary:
 		data["clims"].append({
 			"item": c.item.duplicate(true),
 			"cell": [c.cell.x, c.cell.y],
+		})
+	for d in placed_decos:
+		data["decos"].append({
+			"item": d.item.duplicate(true),
+			"cell": [d.cell.x, d.cell.y],
 		})
 	for s in placed_servers:
 		data["servers"].append({
@@ -1096,6 +1111,13 @@ func restore_world(data: Dictionary) -> void:
 		var c_dict: Dictionary = cd
 		var c_orig := GameSave.cell_from(c_dict.get("cell", []))
 		_spawn_clim(GameSave.restore_item(c_dict.get("item", {})), _restore_cell(c_orig))
+	# Puis les décorations (le style est aussi persistant)
+	for dd in data.get("decos", []):
+		if typeof(dd) != TYPE_DICTIONARY:
+			continue
+		var d_dict: Dictionary = dd
+		var d_orig := GameSave.cell_from(d_dict.get("cell", []))
+		_spawn_decor(GameSave.restore_item(d_dict.get("item", {})), _restore_cell(d_orig))
 	# Puis les serveurs (montés : ils suivent LEUR armoire, relocalisée ou non)
 	for sd in data.get("servers", []):
 		if typeof(sd) != TYPE_DICTIONARY:
@@ -1233,7 +1255,7 @@ func _place_at(cell: Vector2i) -> bool:
 	if kind == "catfood":
 		hud.toast("Verse la nourriture dans la GAMELLE (près de l'étagère) — appuie sur E devant elle.")
 		return true
-	if kind != "server" and kind != "furniture" and kind != "battery" and kind != "clim":
+	if kind != "server" and kind != "furniture" and kind != "battery" and kind != "clim" and kind != "decor":
 		return false
 	# Limite d'armoires (propre à chaque local).
 	if kind == "furniture" and placed_racks.size() >= _loc_rack_limit():
@@ -1255,6 +1277,8 @@ func _place_at(cell: Vector2i) -> bool:
 		var adj_rack := _adjacent_rack(cell)
 		if adj_rack != null:
 			_spawn_server_mounted(item, adj_rack)
+			# Succès « Premier serveur » : un serveur monté compte aussi.
+			GameManager.servers_placed_total += 1
 			player.carried_item = {}
 			hud.toast("%s monté dans l'armoire !" % item.get("name", ""))
 			return true
@@ -1287,8 +1311,13 @@ func _place_at(cell: Vector2i) -> bool:
 		_spawn_server(item, cell)
 	elif kind == "clim":
 		_spawn_clim(item, cell)
+	elif kind == "decor":
+		_spawn_decor(item, cell)
 	else:
 		_spawn_rack(item, cell)
+	# Succès « Premier serveur » : compteur global de serveurs posés.
+	if kind == "server":
+		GameManager.servers_placed_total += 1
 	player.carried_item = {}
 	hud.toast("%s installé dans le %s !" % [item.get("name", ""), _loc_name()])
 	return true
@@ -1308,7 +1337,7 @@ func _carried_placable() -> bool:
 		return player.carried_item.has("os")
 	# La nourriture pour chat n'est PAS plaçable au sol : elle se verse dans
 	# la gamelle (interaction E) — pas de cases vertes de pose.
-	return kind == "furniture" or kind == "battery" or kind == "clim"
+	return kind == "furniture" or kind == "battery" or kind == "clim" or kind == "decor"
 
 
 func _cell_valid_for(item: Dictionary, cell: Vector2i) -> bool:
@@ -1324,6 +1353,8 @@ func _cell_valid_for(item: Dictionary, cell: Vector2i) -> bool:
 		return placed_racks.size() < _loc_rack_limit() and _can_place(cell, kind)
 	if kind == "clim":
 		return placed_clims.size() < GameManager.clim_limit and _can_place(cell, kind)
+	if kind == "decor":
+		return _can_place(cell, kind)
 	if kind == "battery":
 		return _adjacent_rack_battery(cell) != null or _rack_battery_at(cell) != null
 	if kind == "server":
@@ -1456,6 +1487,19 @@ func _spawn_clim(item: Dictionary, cell: Vector2i) -> ClimUnit:
 	return c
 
 
+func _spawn_decor(item: Dictionary, cell: Vector2i) -> DecorUnit:
+	var key := Vector2i(cell.x, cell.y)
+	var d := DecorUnit.new()
+	d.item = item.duplicate(true)
+	d.name = "Decor_%d_%d" % [cell.x, cell.y]
+	d.cell = cell
+	d.position = _cell_center(cell)
+	units_layer.add_child(d)
+	placed_decos.append(d)
+	occupied_cells[key] = d
+	return d
+
+
 func _create_cable(from: Vector2, to: Vector2, col: Color) -> Node2D:
 	var c := Cable.new()
 	c.setup(from, to, col)
@@ -1536,7 +1580,14 @@ func _recompute_stats() -> void:
 		total_watts += int(c.item.get("watts", 0))
 	GameManager.total_clients = total_clients
 	# Les contrats clients (app Mail) garantissent des revenus par mois.
-	GameManager.income_per_sec = total_income + GameManager.contract_income_per_sec()
+	var stats_income := total_income + GameManager.contract_income_per_sec()
+	# Les contrats D'ENTREPRISE rapportent aussi (revenu ou pénalité) — même
+	# calcul qu'au tick, pour que le Monitor ne « mente » pas après un load.
+	for cid in GameManager.enterprise_contracts:
+		var ent := EnterpriseContract.get_contract(str(cid))
+		if not ent.is_empty():
+			stats_income += EnterpriseContract.income_per_sec(ent, self)
+	GameManager.income_per_sec = stats_income
 	GameManager.heat_total = total_heat
 	GameManager.cooling_total = cooling
 	GameManager.overheated = GameManager.temperature >= GameManager.CRITICAL_TEMP
@@ -1623,6 +1674,12 @@ func _on_tick() -> void:
 	# Les contrats clients (app Mail) garantissent des revenus mensuels :
 	# ajoutés indépendamment des serveurs (même en surchauffe/incident).
 	var income := total_income + GameManager.contract_income_per_sec()  # le pare-feu n'augmente pas les revenus
+	# Les contrats D'ENTREPRISE (navigateur Renard) rapportent TANT QUE leurs
+	# exigences tiennent (serveurs dédiés, clims…), sinon c'est une pénalité.
+	for cid in GameManager.enterprise_contracts:
+		var ent := EnterpriseContract.get_contract(str(cid))
+		if not ent.is_empty():
+			income += EnterpriseContract.income_per_sec(ent, self)
 	# Les FACTURES (électricité + mensualité fibre) sont déduites du solde :
 	# elles apparaissent sur le bureau (BillsUI) — économie plus réaliste.
 	var costs := GameManager.electric_cost_per_sec() + GameManager.abo_fee_per_sec()
@@ -1642,6 +1699,11 @@ func _on_tick() -> void:
 	# Température : chaleur des serveurs − refroidissement des clims, plus une
 	# petite dissipation passive (la pièce finit toujours par refroidir un peu
 	# — évite le softlock à 400 °C sans clim). Jamais sous la température ambiante.
+	# La DÉCO refroidit un peu le local (plante = -1% de chaleur).
+	var heat_bonus := 0.0
+	for d in placed_decos:
+		heat_bonus += d.heat_bonus()
+	total_heat *= (1.0 - minf(heat_bonus, 0.25))
 	var passive := 1.0  # équivaut à une petite clim gratuite (sécurité anti-blocage)
 	GameManager.temperature = maxf(GameManager.TEMP_AMBIANT, \
 		GameManager.temperature + (total_heat - cooling - passive) * GameManager.HEAT_PER_SEC)
@@ -1655,6 +1717,10 @@ func _on_tick() -> void:
 	if has_free_slots and total_clients >= bw and tick - bandwidth_warn_tick > 5:
 		bandwidth_warn_tick = tick
 		hud.toast("Connexion saturée ! Achète un meilleur abonnement sur Tech'Occase.")
+
+	# Succès : vérifie les conditions à chaque tick, toaste les nouveaux.
+	for a in Achievements.check_all():
+		hud.toast("SUCCÈS DÉBLOQUÉ : %s — %s" % [a.get("name", "?"), a.get("desc", "")])
 
 
 func _server_running(s: ServerUnit) -> bool:
@@ -1677,6 +1743,8 @@ func _update_incidents() -> void:
 	elif GameManager.ddos_cooldown > 0:
 		GameManager.ddos_cooldown -= 1
 	elif not GameManager.outage_active and _online_servers() > 0 and randf() < DDOS_CHANCE:
+		# Succès « Vainqueur d'un DDoS » : on compte l'attaque (bloquée ou non).
+		GameManager.ddos_survived = true
 		GameManager.ddos_active = true
 		GameManager.ddos_ticks_left = randi_range(DDOS_DUR_MIN, DDOS_DUR_MAX)
 		GameManager.ddos_cooldown = randi_range(DDOS_COOLDOWN_MIN, DDOS_COOLDOWN_MAX)
@@ -1739,6 +1807,12 @@ func _spawn_garage_cat(adopted := false) -> void:
 	## adopted=true : chat adopté (nourriture versée) -> il reste pour toujours.
 	if is_instance_valid(garage_cat):
 		return  # déjà un chat en train de traîner
+	# Succès « Vu 5 chats » : chaque VISITE du chat du quartier compte. Le
+	# chat ADOPTÉ respawné au _ready ne compte pas (sinon 5 allers-retours en
+	# voiture débloqueraient le succès) — son adoption initiale via la gamelle
+	# reste un événement ponctuel.
+	if not adopted:
+		GameManager.cats_seen += 1
 	garage_cat = GarageCat.new()
 	garage_cat.name = "GarageCat"
 	garage_cat.adopted = adopted

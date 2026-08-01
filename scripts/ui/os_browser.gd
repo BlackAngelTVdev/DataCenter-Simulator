@@ -15,6 +15,7 @@ signal closed
 const SITE_URL := "https://tech-occase.bian/"
 const MONITOR_URL := "https://monitor.bian/"
 const PARTNERSHIP_URL := "https://partenaires.bian/"
+const CONTRACTS_URL := "https://contrats.bian/"
 
 var page_box: VBoxContainer
 var cash_label: Label
@@ -198,6 +199,13 @@ func _render_page() -> void:
 	if url.contains("monitor"):
 		current_page = "monitor"
 		_render_monitor()
+	elif url.contains("contrat"):
+		# Page des CONTRATS D'ENTREPRISE : revenus garantis si les exigences
+		# tiennent, pénalité sinon. ATTENTION : « contrat » n'est pas une
+		# sous-chaîne de « partenaires » — l'ordre (contrat AVANT partenaire)
+		# évite tout chevauchement.
+		current_page = "contracts"
+		_render_contracts()
 	elif url.contains("partenaire"):
 		# ATTENTION : « partenaire » et PAS « partner » — l'URL est
 		# https://partenaires.bian/ (« partner » n'est pas une sous-chaîne
@@ -230,6 +238,7 @@ func _render_shop() -> void:
 	var upgrades: Array = []
 	var abos: Array = []
 	var goodies: Array = []
+	var decos: Array = []
 	for item in ShopCatalog.shop_items():
 		# Les PARTENARIATS ont leur propre onglet (https://partenaires.bian/) :
 		# ils ne s'affichent pas dans la boutique matériel.
@@ -242,6 +251,7 @@ func _render_shop() -> void:
 			"upgrade": upgrades.append(item)
 			"abo": abos.append(item)
 			"catfood": goodies.append(item)
+			"decor": decos.append(item)
 
 	page_box.add_child(_section_title("Serveurs d'occasion"))
 	var hint := Label.new()
@@ -296,6 +306,17 @@ func _render_shop() -> void:
 		goodie_hint.add_theme_color_override("font_color", Color(1.0, 0.85, 0.6))
 		page_box.add_child(goodie_hint)
 		for item in goodies:
+			page_box.add_child(_card(item))
+
+	if not decos.is_empty():
+		page_box.add_child(_section_title("Déco du garage"))
+		var decor_hint := Label.new()
+		decor_hint.text = "Pour le style, et parfois un petit bonus : une plante refroidit le local (-1% de chaleur). À poser où tu veux, comme les clims."
+		decor_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		decor_hint.add_theme_font_size_override("font_size", 12)
+		decor_hint.add_theme_color_override("font_color", Color(1.0, 0.8, 0.9))
+		page_box.add_child(decor_hint)
+		for item in decos:
 			page_box.add_child(_card(item))
 
 	# --- Vendre son stock (étagère du local courant) ---
@@ -379,6 +400,7 @@ func _build_site_links() -> Control:
 	for link in [
 		["Tech'Occase", SITE_URL],
 		["Partenaires", PARTNERSHIP_URL],
+		["Contrats", CONTRACTS_URL],
 		["Monitor", MONITOR_URL],
 	]:
 		var b := _btn(link[0], 180.0)
@@ -427,6 +449,149 @@ func _render_partnerships() -> void:
 		page_box.add_child(empty)
 
 	_refresh_cash()
+
+
+func _render_contracts() -> void:
+	## Page « Contrats d'entreprise » : signer un contrat mensuel avec une
+	## société. Revenus GARANTIS par mois SI les exigences tiennent (serveurs
+	## dédiés, clims, armoires — dans le local courant), PÉNALITÉ sinon.
+	for child in page_box.get_children():
+		child.queue_free()
+	buy_entries.clear()
+	page_box.add_child(_build_contracts_banner())
+	page_box.add_child(_build_site_links())
+
+	page_box.add_child(_section_title("Contrats disponibles"))
+	var hint := Label.new()
+	hint.text = "Chaque contrat exige une infrastructure minimale (ex : 1 serveur DÉDIÉ + 2 climatiseurs). Si tu la maintiens, encaisse le revenu garanti ; sinon, tu paies la pénalité au lieu de recevoir. Les exigences se vérifient dans le LOCAL COURANT."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.add_theme_font_size_override("font_size", 12)
+	hint.add_theme_color_override("font_color", Color(0.6, 1.0, 0.85))
+	page_box.add_child(hint)
+
+	var garage := _garage()
+	for c in EnterpriseContract.all():
+		var card := PanelContainer.new()
+		card.add_theme_stylebox_override("panel", UITheme.card(10))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		card.add_child(row)
+
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info.add_theme_constant_override("separation", 3)
+		row.add_child(info)
+
+		var name_label := Label.new()
+		name_label.text = str(c.get("name", "?"))
+		name_label.add_theme_font_size_override("font_size", 16)
+		info.add_child(name_label)
+
+		var desc := Label.new()
+		desc.text = str(c.get("desc", ""))
+		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc.add_theme_font_size_override("font_size", 12)
+		desc.add_theme_color_override("font_color", Color(1, 1, 1, 0.65))
+		info.add_child(desc)
+
+		var req_text := _contract_requirements_text(c)
+		var req_label := Label.new()
+		req_label.text = req_text
+		req_label.add_theme_font_size_override("font_size", 12)
+		info.add_child(req_label)
+
+		var signed := EnterpriseContract.is_signed(str(c["id"]))
+		var status: Label
+		if signed and garage != null:
+			status = Label.new()
+			if EnterpriseContract.requirements_met(c, garage):
+				status.text = "En règle : +%d $/mois garantis" % int(c.get("income_month", 0))
+				status.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
+			else:
+				status.text = "Exigences non remplies : -%d $/mois" % int(c.get("penalty_month", 0))
+				status.add_theme_color_override("font_color", Color(1.0, 0.5, 0.4))
+			status.add_theme_font_size_override("font_size", 13)
+			info.add_child(status)
+
+		var btn := Button.new()
+		if signed:
+			btn.text = "Signé"
+			btn.disabled = true
+			btn.add_theme_stylebox_override("disabled", UITheme.button_normal(Color(0.12, 0.14, 0.2)))
+		else:
+			btn.text = "Signer (+%d $/mois · -%d $ si non respecté)" % [
+				int(c.get("income_month", 0)), int(c.get("penalty_month", 0))]
+			btn.add_theme_stylebox_override("normal", UITheme.button_normal(Color(0.15, 0.45, 0.25)))
+			btn.add_theme_stylebox_override("hover", UITheme.button_hover(Color(0.2, 0.6, 0.32)))
+			btn.pressed.connect(_sign_contract.bind(str(c["id"])))
+		btn.add_theme_stylebox_override("pressed", UITheme.button_pressed())
+		btn.add_theme_stylebox_override("focus", UITheme.button_focus())
+		btn.add_theme_font_size_override("font_size", 14)
+		btn.custom_minimum_size = Vector2(260, 44)
+		row.add_child(btn)
+		page_box.add_child(card)
+
+	_refresh_cash()
+
+
+func _contract_requirements_text(c: Dictionary) -> String:
+	## Exigences lisibles : « 1 serveur dédié · 2 clims · 1 armoire ».
+	var req: Dictionary = c.get("requirements", {})
+	var parts := []
+	var n_ded := int(req.get("dedicated_servers", 0))
+	if n_ded > 0:
+		parts.append("%d serveur%s dédié%s" % [n_ded, "s" if n_ded > 1 else "", "s" if n_ded > 1 else ""])
+	var n_clim := int(req.get("clims", 0))
+	if n_clim > 0:
+		parts.append("%d climatiseur%s" % [n_clim, "s" if n_clim > 1 else ""])
+	var n_rack := int(req.get("racks", 0))
+	if n_rack > 0:
+		parts.append("%d armoire%s" % [n_rack, "s" if n_rack > 1 else ""])
+	var n_client := int(req.get("clients", 0))
+	if n_client > 0:
+		parts.append("%d client%s" % [n_client, "s" if n_client > 1 else ""])
+	if parts.is_empty():
+		return "Exigences : aucune (revenu pur)"
+	return "Exigences : " + " · ".join(parts)
+
+
+func _sign_contract(cid: String) -> void:
+	if EnterpriseContract.is_signed(cid):
+		_flash("Contrat déjà signé !")
+		return
+	EnterpriseContract.sign(cid)
+	_render_contracts()
+	_flash("Contrat %s signé : revenus garantis tant que les exigences tiennent !" % EnterpriseContract.get_contract(cid).get("name", ""))
+
+
+func _build_contracts_banner() -> Control:
+	var banner := PanelContainer.new()
+	banner.add_theme_stylebox_override("panel", UITheme.tinted(Color(0.08, 0.35, 0.3), 14.0, 10.0))
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	banner.add_child(vb)
+
+	var site_name := Label.new()
+	site_name.text = "Contrats d'entreprise"
+	site_name.add_theme_font_size_override("font_size", 26)
+	site_name.add_theme_color_override("font_color", Color(0.5, 1.0, 0.75))
+	vb.add_child(site_name)
+	var slogan := Label.new()
+	slogan.text = "Des sociétés veulent ta fiabilité. Signe, respecte les exigences, encaisse."
+	slogan.add_theme_font_size_override("font_size", 14)
+	vb.add_child(slogan)
+
+	cash_label = Label.new()
+	cash_label.add_theme_font_size_override("font_size", 16)
+	cash_label.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
+	vb.add_child(cash_label)
+
+	flash_label = Label.new()
+	flash_label.add_theme_font_size_override("font_size", 14)
+	flash_label.add_theme_color_override("font_color", Color(0.6, 1.0, 0.7))
+	flash_label.visible = false
+	vb.add_child(flash_label)
+	return banner
 
 
 func _build_partner_banner() -> Control:
@@ -812,6 +977,11 @@ func _specs(item: Dictionary) -> String:
 				float(item.get("cooling", 0.0)) * GameManager.HEAT_PER_SEC,  # unités de chaleur : °C/s
 				int(item.get("watts", 0)),
 			]
+		"decor":
+			var dh := float(item.get("heat_bonus", 0.0))
+			if dh > 0.0:
+				return "À poser · -%d%% de chaleur dans le local" % int(dh * 100)
+			return "À poser · purement décoratif"
 		"upgrade":
 			return "S'applique immédiatement · +25%% de revenus"
 		"local":
@@ -988,7 +1158,7 @@ func _buy(item: Dictionary) -> void:
 		return
 	GameManager.cash -= price
 	match kind:
-		"server", "furniture", "battery", "clim", "catfood":
+		"server", "furniture", "battery", "clim", "catfood", "decor":
 			GameManager.deliveries.append(item.duplicate(true))
 			_flash("Commande passée ! Livraison à l'extérieur du garage (porte du bas).")
 		"upgrade":

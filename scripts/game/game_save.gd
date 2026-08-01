@@ -38,6 +38,11 @@ static func persist(garage: GarageScene) -> bool:
 		"cat_adopted": GameManager.cat_adopted,
 		"contracts": GameManager.contracts.duplicate(true),
 		"mails_seen": GameManager.mails_seen.keys(),
+		"achievements": GameManager.achievements.keys(),
+		"enterprise_contracts": GameManager.enterprise_contracts.keys(),
+		"servers_placed_total": GameManager.servers_placed_total,
+		"cats_seen": GameManager.cats_seen,
+		"ddos_survived": GameManager.ddos_survived,
 		"pos": {
 			"0": _vec_to_arr(GameManager.player_pos.get(0, Vector2.ZERO)),
 			"1": _vec_to_arr(GameManager.player_pos.get(1, Vector2.ZERO)),
@@ -109,6 +114,20 @@ static func load_into(garage: GarageScene) -> void:
 	if typeof(mails_raw) == TYPE_ARRAY:
 		for mid in mails_raw:
 			GameManager.mails_seen[str(mid)] = true
+	# Succès débloqués + contrats d'entreprise signés (listes d'ids).
+	GameManager.achievements = {}
+	var ach_raw: Variant = data.get("achievements", [])
+	if typeof(ach_raw) == TYPE_ARRAY:
+		for aid in ach_raw:
+			GameManager.achievements[str(aid)] = true
+	GameManager.enterprise_contracts = {}
+	var ent_raw: Variant = data.get("enterprise_contracts", [])
+	if typeof(ent_raw) == TYPE_ARRAY:
+		for eid in ent_raw:
+			GameManager.enterprise_contracts[str(eid)] = true
+	GameManager.servers_placed_total = int(data.get("servers_placed_total", 0))
+	GameManager.cats_seen = int(data.get("cats_seen", 0))
+	GameManager.ddos_survived = bool(data.get("ddos_survived", false))
 	_restore_pos(data.get("pos", {}))
 
 	var deliveries: Variant = data.get("deliveries", [])
