@@ -28,6 +28,9 @@ func _ready() -> void:
 	garage.units_layer.add_child(s1)
 	garage.placed_servers.append(s1)
 	rack.mount(s1)
+	# Un serveur monté SANS switch ne tourne pas (nouvelle règle réseau) :
+	# le rack doit être équipé pour que le test de coupure soit valide.
+	rack.mount_switch(ShopCatalog.get_item("switch_8p"))
 	rack.mount_battery(ShopCatalog.get_item("batterie_ups"))
 	print("TEST rack_has_battery=", rack.has_battery(), " s1_mounted=", s1.rack == rack)
 
