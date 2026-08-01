@@ -6,13 +6,18 @@ extends Node2D
 ## aucun impact sur le gameplay. Rendu 100 % procédural (aucune texture).
 
 const SPEED := 70.0
-const LIFETIME := 16.0  # secondes avant de ressortir
+const LIFETIME := 16.0  # secondes avant de ressortir (chat NON adopté)
 const DOOR_POS := Vector2(672, 600)  # porte de livraison du garage
+
+## Chat ADOPTÉ (nourriture versée dans la gamelle) : il reste dans le garage
+## en permanence, se balade et fait des pauses — il ne ressort plus.
+var adopted := false
 
 var _target := Vector2.ZERO
 var _life := 0.0
 var _time := 0.0
 var _leaving := false
+var _rest := 0.0
 var _facing := 1.0  # 1 = tête à droite, -1 = tête à gauche
 var _rng := RandomNumberGenerator.new()
 
@@ -34,13 +39,24 @@ func _pick_target() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
-	if not _leaving and _life >= LIFETIME:
+	# Le chat adopté ne part JAMAIS ; il fait même des pauses (il s'assoit).
+	if adopted:
+		_rest -= delta
+		if _rest > 0.0:
+			_life += delta
+			queue_redraw()
+			return
+	if not _leaving and not adopted and _life >= LIFETIME:
 		_leaving = true
 		_target = DOOR_POS + Vector2(0, 30)
 	if _leaving and position.distance_to(_target) < 20.0:
 		queue_free()
 		return
 	if not _leaving and position.distance_to(_target) < 8.0:
+		if adopted and _rng.randf() < 0.30:
+			_rest = _rng.randf_range(1.5, 4.5)
+			queue_redraw()
+			return
 		_pick_target()
 	var dir := position.direction_to(_target)
 	position += dir * SPEED * delta

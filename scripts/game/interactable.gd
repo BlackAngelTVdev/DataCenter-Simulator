@@ -38,6 +38,8 @@ func _ready() -> void:
 				tex_name = "car"
 			"desk":
 				tex_name = "desk"
+			"bowl":
+				tex_name = "bowl"
 		if not tex_name.is_empty():
 			_body = Sprite2D.new()
 			_body.texture = BakedAssets.tex(tex_name)
@@ -124,3 +126,10 @@ func _draw_procedural() -> void:
 			# Calculatrice / bloc-notes
 			draw_rect(Rect2(12, -8, 9, 7), Color(0.3, 0.85, 0.55))
 			draw_rect(Rect2(12, -8, 9, 7), Color(0.1, 0.1, 0.12, 0.3), false, 1.0)
+		"bowl":
+			# Gamelle du chat vue de dessus : bol + rebord, ombre douce
+			Visuals.draw_soft_shadow(self, Rect2(-10, -6, 20, 12), 4.0)
+			draw_circle(Vector2.ZERO, 9, Color(0.5, 0.38, 0.28))
+			draw_circle(Vector2.ZERO, 7.5, Color(0.32, 0.22, 0.16))
+			draw_arc(Vector2.ZERO, 9, 0, TAU, 18, Color(0.65, 0.52, 0.4), 1.5)
+			draw_circle(Vector2.ZERO, 4.5, Color(0.2, 0.16, 0.12))
