@@ -1,20 +1,28 @@
 class_name HUD
 extends CanvasLayer
-## HUD minimal : invite d'interaction « E — … » (bas centre) et toasts
-## (haut centre). Les panneaux de stats ont été retirés à la demande :
-## rien ne recouvre la vue du garage. L'argent reste visible dans la
-## boutique Tech'Occase et via les toasts.
+## HUD : invite d'interaction « E — … » (bas centre) + centre de NOTIFICATIONS
+## (cloche en haut à gauche). Chaque toast() devient une notification dans la
+## cloche : un clic ouvre le panneau, chaque entrée a un bouton « Fait » pour
+## la faire disparaître. Les notifications vivent dans GameManager
+## (elles survivent aux téléportations entre locaux).
 
 var prompt_label: Label
 var prompt_panel: PanelContainer
-var toast_label: Label
-var toast_timer: Timer
+
+# --- Cloche de notifications ---
+var bell_btn: Button
+var badge_label: Label
+var notif_panel: PanelContainer
+var notif_scroll: ScrollContainer
+var notif_list: VBoxContainer
+var panel_open := false
 
 
 func _ready() -> void:
 	_build()
-	toast_label.visible = false
 	prompt_panel.visible = false
+	notif_panel.visible = false
+	_refresh_badge()
 
 
 func _label(font_size: int, color: Color) -> Label:
@@ -39,29 +47,127 @@ func _build() -> void:
 	prompt_panel.add_child(prompt_label)
 	add_child(prompt_panel)
 
-	# --- Toasts (haut centre) ---
-	toast_label = _label(16, Color(1.0, 1.0, 1.0, 0.95))
-	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	toast_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	toast_label.offset_top = 128.0
-	toast_label.offset_bottom = 168.0
-	toast_label.add_theme_color_override("shadow_color", Color(0, 0, 0, 0.8))
-	toast_label.add_theme_constant_override("shadow_offset_x", 2)
-	toast_label.add_theme_constant_override("shadow_offset_y", 2)
-	add_child(toast_label)
+	# --- Cloche de notifications (haut gauche) ---
+	bell_btn = Button.new()
+	bell_btn.icon = BakedAssets.tex("icon_bell")
+	bell_btn.expand_icon = true
+	bell_btn.custom_minimum_size = Vector2(48, 48)
+	bell_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	bell_btn.offset_left = 12.0
+	bell_btn.offset_top = 12.0
+	bell_btn.add_theme_stylebox_override("normal", UITheme.button_normal(Color(0.14, 0.18, 0.28)))
+	bell_btn.add_theme_stylebox_override("hover", UITheme.button_hover())
+	bell_btn.add_theme_stylebox_override("pressed", UITheme.button_pressed())
+	bell_btn.pressed.connect(_toggle_panel)
+	add_child(bell_btn)
 
-	toast_timer = Timer.new()
-	toast_timer.wait_time = 3.0
-	toast_timer.one_shot = true
-	toast_timer.timeout.connect(_on_toast_timeout)
-	add_child(toast_timer)
+	# Badge rouge du nombre de non-lues (coin haut-droit de la cloche)
+	badge_label = Label.new()
+	badge_label.add_theme_font_size_override("font_size", 13)
+	badge_label.add_theme_color_override("font_color", Color(1, 1, 1))
+	badge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	badge_label.offset_left = 30.0
+	badge_label.offset_top = -4.0
+	badge_label.custom_minimum_size = Vector2(24, 20)
+	badge_label.add_theme_stylebox_override("normal", UITheme.tinted(Color(0.82, 0.15, 0.15), 4, 4))
+	bell_btn.add_child(badge_label)
+
+	# --- Panneau des notifications ---
+	notif_panel = PanelContainer.new()
+	notif_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	notif_panel.offset_left = 12.0
+	notif_panel.offset_top = 72.0
+	notif_panel.offset_right = 12.0 + 420.0
+	notif_panel.offset_bottom = 72.0 + 460.0
+	notif_panel.add_theme_stylebox_override("panel", UITheme.panel(12))
+	add_child(notif_panel)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	notif_panel.add_child(vb)
+
+	var header := HBoxContainer.new()
+	var title := _label(20, Color(1, 1, 1, 0.95))
+	title.text = "Notifications"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var clear_btn := UIHelpers.make_button("Tout effacer", false, Vector2(150, 40))
+	clear_btn.add_theme_font_size_override("font_size", 15)
+	clear_btn.pressed.connect(_clear_all)
+	header.add_child(title)
+	header.add_child(clear_btn)
+	vb.add_child(header)
+
+	notif_scroll = ScrollContainer.new()
+	notif_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	notif_scroll.custom_minimum_size = Vector2(0, 350)
+	vb.add_child(notif_scroll)
+
+	notif_list = VBoxContainer.new()
+	notif_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	notif_list.add_theme_constant_override("separation", 6)
+	notif_scroll.add_child(notif_list)
 
 
-func _on_toast_timeout() -> void:
-	# Garde anti-crash : toast_label ne doit plus être touché s'il a été
-	# libéré (queue_free d'un parent) avant la fin du timer.
-	if is_instance_valid(toast_label):
-		toast_label.visible = false
+func _toggle_panel() -> void:
+	panel_open = not panel_open
+	notif_panel.visible = panel_open
+	if panel_open:
+		# Ouvrir le panneau marque tout comme lu (le badge se vide).
+		for n in GameManager.notifications:
+			n["read"] = true
+		_refresh_badge()
+		_refresh_list()
+
+
+func _clear_all() -> void:
+	GameManager.notifications.clear()
+	_refresh_list()
+	_refresh_badge()
+
+
+func _refresh_list() -> void:
+	for c in notif_list.get_children():
+		c.queue_free()
+	if GameManager.notifications.is_empty():
+		var empty := _label(16, Color(1, 1, 1, 0.5))
+		empty.text = "Aucune notification."
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.custom_minimum_size = Vector2(0, 60)
+		notif_list.add_child(empty)
+		return
+	# Les plus récentes en premier.
+	for i in range(GameManager.notifications.size() - 1, -1, -1):
+		var n: Dictionary = GameManager.notifications[i]
+		var row := HBoxContainer.new()
+		var txt := _label(15, Color(1, 1, 1, 0.92))
+		txt.text = str(n.get("text", ""))
+		txt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var done := UIHelpers.make_button("Fait", true, Vector2(110, 36))
+		done.add_theme_font_size_override("font_size", 14)
+		var idx := i
+		done.pressed.connect(func() -> void: _mark_done(idx))
+		row.add_child(txt)
+		row.add_child(done)
+		notif_list.add_child(row)
+
+
+func _mark_done(idx: int) -> void:
+	if idx < 0 or idx >= GameManager.notifications.size():
+		return
+	GameManager.notifications.remove_at(idx)
+	_refresh_list()
+	_refresh_badge()
+
+
+func _refresh_badge() -> void:
+	var unread := 0
+	for n in GameManager.notifications:
+		if not n.get("read", false):
+			unread += 1
+	badge_label.text = str(unread) if unread > 0 else ""
+	badge_label.visible = unread > 0
 
 
 func show_prompt(text: String) -> void:
@@ -74,6 +180,9 @@ func hide_prompt() -> void:
 
 
 func toast(text: String) -> void:
-	toast_label.text = text
-	toast_label.visible = true
-	toast_timer.start()
+	## Une notification arrive dans la cloche (plus de toast éphémère en haut
+	## de l'écran). On garde le nom « toast » pour ne pas toucher aux appelants.
+	GameManager.add_notification(text)
+	_refresh_badge()
+	if panel_open:
+		_refresh_list()
