@@ -98,10 +98,12 @@ const OUTAGE_COOLDOWN_MAX := 100
 
 ## Usure des serveurs : augmentation par seconde de fonctionnement et
 ## probabilité de panne (proportionnelle à l'usure). À l'usure max (1.0),
-## la probabilité par tick est BREAK_CHANCE (≈ 0,05 %/s : une panne toutes
-## les ~30 min pour une machine très usée). Maintenance (E) pour réparer.
-const WEAR_PER_TICK := 0.0006
-const BREAK_CHANCE := 0.0005
+## la probabilité par tick est BREAK_CHANCE (≈ 0,02 %/s : une panne toutes
+## les ~80 min pour une machine très usée). L'usure complète (1.0) met
+## ~2 h 45 de fonctionnement continu à arriver — un serveur neuf reste
+## fiable longtemps, la maintenance (E) reste utile en fin de vie.
+const WEAR_PER_TICK := 0.0001
+const BREAK_CHANCE := 0.0002
 
 var player: Player
 var hud: HUD
