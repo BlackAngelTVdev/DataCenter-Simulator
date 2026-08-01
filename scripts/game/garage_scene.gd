@@ -189,8 +189,9 @@ func _loc_assembly_cell() -> Vector2i:
 
 
 func _loc_radio_cell() -> Vector2i:
-	## La radio est posée à côté de l'établi (décalée d'une case).
-	return _loc_bench_cell() + Vector2i(1, 0)
+	## La radio est posée à côté de l'établi, de l'AUTRE côté (contre le mur) :
+	## à gauche de l'établi, collée au mur gauche du local.
+	return _loc_bench_cell() + Vector2i(-1, 0)
 
 
 func _loc_bowl_cell() -> Vector2i:
