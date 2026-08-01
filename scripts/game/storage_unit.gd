@@ -99,7 +99,8 @@ func _draw() -> void:
 	var slot_h := 10.0
 	for i in range(SLOTS):
 		var col := i % 2
-		var row := i / 2
+		@warning_ignore("integer_division")
+		var row := i / 2  # division entière INTENTIONNELLE (2 colonnes × 2 rangées)
 		var r := Rect2(-SIZE.x / 2 + 7 + col * slot_w, -SIZE.y / 2 + 8 + row * (slot_h + 2), slot_w - 4, slot_h)
 		if items[i].is_empty():
 			draw_texture_rect(BakedAssets.tex("block"), r, false, Color(0.15, 0.17, 0.22))
@@ -123,7 +124,8 @@ func _draw_procedural() -> void:
 	var slot_h := 10.0
 	for i in range(SLOTS):
 		var col := i % 2
-		var row := i / 2
+		@warning_ignore("integer_division")
+		var row := i / 2  # division entière INTENTIONNELLE (2 colonnes × 2 rangées)
 		var r := Rect2(-SIZE.x / 2 + 7 + col * slot_w, -SIZE.y / 2 + 8 + row * (slot_h + 2), slot_w - 4, slot_h)
 		draw_rect(r, Color(0.15, 0.17, 0.22))
 		draw_rect(r, Color(1, 1, 1, 0.08), false, 1.0)

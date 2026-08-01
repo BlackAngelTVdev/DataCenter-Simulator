@@ -11,7 +11,9 @@ static func _flat(bg: Color, radius: float, border: Color, bw: int,
 		content_v: float, content_h: float) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg
-	sb.set_corner_radius_all(radius)
+	# set_corner_radius_all attend un int : arrondi explicite (les appelants
+	# passent des floats entiers : 12.0, 10.0, 8.0…) → pas de perte de précision.
+	sb.set_corner_radius_all(roundi(radius))
 	# Pas de liseré sur un fond transparent (boutons plats de la barre OS),
 	# SAUF si la bordure elle-même est bien visible (anneau de focus bleu).
 	if bw > 0 and (bg.a > 0.05 or border.a > 0.5):
@@ -73,5 +75,5 @@ static func window(content := 0.0) -> StyleBoxFlat:
 
 ## Panneau/bouton TEINTÉ : couleur pleine directe (aucune texture,
 ## donc pas de double-teinte possible).
-static func tinted(color: Color, margin := 14.0, content := 8.0) -> StyleBoxFlat:
+static func tinted(color: Color, _margin := 14.0, content := 8.0) -> StyleBoxFlat:
 	return _flat(color, 10.0, Color(1, 1, 1, 0.10), 1, content, content)

@@ -29,9 +29,9 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func open(target: RackUnit, floor: Array = []) -> void:
+func open(target: RackUnit, floor_list: Array = []) -> void:
 	rack = target
-	floor_servers = floor
+	floor_servers = floor_list
 	# Force la taille plein écran (le Control caché ne reçoit pas de re-layout).
 	root_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root_control.visible = true

@@ -50,7 +50,7 @@ func _ready() -> void:
 	flash_timer = Timer.new()
 	flash_timer.wait_time = 2.5
 	flash_timer.one_shot = true
-	flash_timer.timeout.connect(func() -> void: flash_label.visible = false)
+	flash_timer.timeout.connect(_on_flash_timeout)
 	add_child(flash_timer)
 
 	# Rafraîchit le monitoring en direct quand la page est visible.
@@ -203,6 +203,10 @@ func _render_shop() -> void:
 	# Recalcule les boutons mais garde le bandeau (enfants créés dans _build_page).
 	for child in page_box.get_children():
 		child.queue_free()
+	# On repart d'une liste PROPRE AVANT de construire les cartes : les _card()
+	# vont ré-ajouter leurs entrées, puis _refresh_cash() à la fin lit la liste
+	# pleine → les états ACTIF / POSSÉDÉ / DÉPASSÉ s'appliquent enfin.
+	buy_entries.clear()
 	# on re-crée le bandeau à chaque rendu (simple et robuste)
 	var banner := _build_banner()
 	page_box.add_child(banner)
@@ -299,7 +303,6 @@ func _render_shop() -> void:
 				continue
 			page_box.add_child(_stock_card(shelf, i))
 
-	buy_entries.clear()
 	_refresh_cash()
 
 
@@ -438,8 +441,9 @@ func _add_infra_row(grid: GridContainer, label: String, key: String) -> void:
 	var v := Label.new()
 	v.add_theme_font_size_override("font_size", 14)
 	grid.add_child(v)
-	if not mon_infra.has(key):
-		mon_infra[key] = v
+	# Toujours réassigner : les anciens labels sont libérés au rendu suivant
+	# (queue_free) — garder l'ancienne référence ferait le même crash « freed ».
+	mon_infra[key] = v
 
 
 var mon_infra := {}
@@ -451,6 +455,13 @@ func _on_monitor_tick() -> void:
 
 
 func _refresh_monitor() -> void:
+	# AUTO-RÉPARATION : si les widgets du Monitor ont été libérés par un
+	# changement de page (queue_free), on re-rend la page avant de rafraîchir
+	# — le timer 1s ne peut plus tomber sur des nœuds libérés (crash freed).
+	if not is_instance_valid(mon_tick_label) or not is_instance_valid(mon_conn_bar) \
+			or not is_instance_valid(mon_conn_label) or not is_instance_valid(mon_servers_box):
+		_render_monitor()
+		return
 	var garage := _garage()
 	if garage == null:
 		mon_tick_label.text = "— hors ligne —"
@@ -688,11 +699,15 @@ func _refresh_cash() -> void:
 	if current_page == "monitor":
 		_refresh_monitor()
 		return
-	if cash_label != null:
+	if is_instance_valid(cash_label):
 		cash_label.text = "💰 %d $" % int(GameManager.cash)
 	for entry in buy_entries:
 		var btn: Button = entry["btn"]
 		var item: Dictionary = entry["item"]
+		# Garde anti-crash : un bouton peut avoir été libéré par un rendu de page
+		# entre-temps (même classe de bug « previously freed » qu'ailleurs).
+		if not is_instance_valid(btn):
+			continue
 		btn.disabled = false
 		btn.text = "%d $" % int(item.get("price", 0))
 		# États spéciaux : les achats uniques (abo / pare-feu / locaux) ne se
@@ -711,8 +726,15 @@ func _refresh_cash() -> void:
 					btn.text = "POSSÉDÉ"
 
 
+func _on_flash_timeout() -> void:
+	## Le bandeau de la boutique est recréé à chaque rendu de page (shop/monitor) :
+	## l'ancien flash_label peut être libéré avant la fin du timer → garde obligatoire.
+	if is_instance_valid(flash_label):
+		flash_label.visible = false
+
+
 func _flash(text: String) -> void:
-	if flash_label != null:
+	if is_instance_valid(flash_label):
 		flash_label.text = text
 		flash_label.visible = true
 		flash_timer.start()

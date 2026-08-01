@@ -42,9 +42,9 @@ const GARAGE_DOOR_X1 := 26
 const GARAGE_NETWORK := Vector2(432, 26)      # box réseau, mur du haut
 const GARAGE_SPAWN := Vector2i(13, 8)
 const GARAGE_COMPUTER := Vector2i(24, 2)
-const GARAGE_DESK := Vector2i(25, 2)  # bureau des factures, collé au PC
+const GARAGE_DESK := Vector2i(22, 2)  # bureau des factures, à gauche du PC
 const GARAGE_BENCH := Vector2i(3, 2)
-const GARAGE_STORAGE := Vector2i(26, 9)       # étagère de stockage (mur droit)
+const GARAGE_STORAGE := Vector2i(21, 9)       # étagère de stockage (décalée vers le centre)
 const GARAGE_CAR_POS := Vector2(450, 664)     # voiture dans la rue (cour)
 
 # --- Géométrie du DATA HALL (local 1) : grande salle ---
@@ -54,7 +54,7 @@ const LOCAL2_NETWORK := Vector2(180, 26)
 const LOCAL2_CAR_POS := Vector2(640, 710)     # voiture garée (bas de salle)
 const LOCAL2_SPAWN := Vector2i(1, 13)
 const LOCAL2_COMPUTER := Vector2i(40, 2)
-const LOCAL2_DESK := Vector2i(41, 2)  # bureau des factures, collé au PC
+const LOCAL2_DESK := Vector2i(38, 2)  # bureau des factures, à gauche du PC
 const LOCAL2_BENCH := Vector2i(4, 12)
 const LOCAL2_STORAGE := Vector2i(39, 20)     # étagère de stockage (bas-droit)
 
@@ -285,7 +285,12 @@ func _build_walls() -> void:
 
 
 func _build_layers() -> void:
-	decor = GarageDecor.new() if location_id == 0 else Local2Decor.new()
+	# if/else (pas de ternaire) : GarageDecor et Local2Decor sont des types
+	# différents — le ternaire déclenchait un avertissement INCOMPATIBLE_TERNARY.
+	if location_id == 0:
+		decor = GarageDecor.new()
+	else:
+		decor = Local2Decor.new()
 	decor.name = "Decor"
 	decor.visuals = false  # le visuel est cuit dans l'image de fond (collisions seules)
 	add_child(decor)

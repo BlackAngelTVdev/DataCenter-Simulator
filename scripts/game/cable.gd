@@ -28,13 +28,13 @@ func _draw() -> void:
 		var inv := 1.0 - t
 		var p := inv * inv * from_pos + 2.0 * inv * t * mid + t * t * to_pos
 		var seg := p - prev
-		var len := seg.length()
-		if len > 0.5:
+		var seg_len := seg.length()
+		if seg_len > 0.5:
 			var ang := seg.angle()
 			# Largeur de CONTENU du filament (18 px) — la texture a 1 px de
 			# padding transparent de chaque côté : on l'étire exactement pour
 			# éviter les trous en pointillés entre segments.
-			draw_set_transform((prev + p) / 2.0, ang, Vector2(len / 18.0, 1.0))
+			draw_set_transform((prev + p) / 2.0, ang, Vector2(seg_len / 18.0, 1.0))
 			draw_texture(tex, -Vector2(tex.get_width() / 2.0, tex.get_height() / 2.0), color)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		prev = p
