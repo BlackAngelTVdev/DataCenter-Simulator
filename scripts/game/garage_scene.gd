@@ -57,6 +57,7 @@ const LOCAL2_COMPUTER := Vector2i(40, 2)
 const LOCAL2_DESK := Vector2i(38, 2)  # bureau des factures, à gauche du PC
 const LOCAL2_BENCH := Vector2i(4, 12)
 const LOCAL2_STORAGE := Vector2i(39, 20)     # étagère de stockage (bas-droit)
+const LOCAL2_ASSEMBLY := Vector2i(6, 12)     # table d'assemblage (à droite de l'établi)
 
 const CRATE_SPOTS := [
 	Vector2(200, 600),
@@ -112,6 +113,7 @@ var storage_ui: StorageUI
 var pause_menu: PauseMenu
 var travel_ui: TravelUI
 var bills_ui: BillsUI
+var assembly_ui: AssemblyUI
 
 var decor: Node2D
 var bench_unit: BenchUnit
@@ -178,6 +180,12 @@ func _loc_bench_cell() -> Vector2i:
 
 func _loc_storage_cell() -> Vector2i:
 	return GARAGE_STORAGE if location_id == 0 else LOCAL2_STORAGE
+
+
+func _loc_assembly_cell() -> Vector2i:
+	## Table d'assemblage : uniquement au DATA HALL (le garage ne monte pas
+	## de serveurs neufs — c'est là qu'est le configurateur Neuf).
+	return LOCAL2_ASSEMBLY if location_id == 1 else Vector2i(-99, -99)
 
 
 func _loc_radio_cell() -> Vector2i:
@@ -279,7 +287,7 @@ func _place_player_at_saved_pos() -> void:
 func _process(_delta: float) -> void:
 	player.input_blocked = computer_os.visible or install_ui.visible or rack_ui.visible \
 		or bench_ui.visible or storage_ui.visible or pause_menu.visible or travel_ui.visible \
-		or bills_ui.visible
+		or bills_ui.visible or assembly_ui.visible
 	storage_ui.set_hands(player.is_carrying())
 	_update_prompt()
 	_refresh_placement_overlay()
@@ -453,6 +461,18 @@ func _build_interactables() -> void:
 		add_child(delivery2)
 		interactables.append(delivery2)
 
+		# TABLE D'ASSEMBLAGE : on y assemble les KITS serveurs neufs (site
+		# « Neuf » du PC Pro) en vrais serveurs, avant d'installer un OS à
+		# l'établi. Réservé au Data Hall (le configurateur n'y est que là).
+		var assembly := Interactable.new()
+		assembly.kind = "assembly"
+		assembly.label = "TABLE D'ASSEMBLAGE"
+		assembly.box_size = Vector2(48, 32)
+		assembly.body_color = Color(0.4, 0.55, 0.5)
+		assembly.position = _cell_center(_loc_assembly_cell())
+		add_child(assembly)
+		interactables.append(assembly)
+
 	# Voiture garée dans la rue : E ou clic ouvre le menu des lieux (TravelUI)
 	var car := Interactable.new()
 	car.kind = "car"
@@ -536,6 +556,11 @@ func _build_ui() -> void:
 	storage_ui.deposit_requested.connect(_storage_deposit)
 	storage_ui.take_requested.connect(_storage_take)
 	add_child(storage_ui)
+
+	assembly_ui = AssemblyUI.new()
+	assembly_ui.name = "AssemblyUI"
+	assembly_ui.assembled.connect(_on_kit_assembled)
+	add_child(assembly_ui)
 
 	pause_menu = PauseMenu.new()
 	pause_menu.name = "PauseMenu"
@@ -711,6 +736,10 @@ func _prompt_for(it: Node) -> String:
 				return "E — Prendre la voiture"
 			"desk":
 				return "E — Consulter les factures"
+			"assembly":
+				if player.is_carrying() and player.carried_item.get("kind", "") == "kit":
+					return "E — Assembler le kit serveur"
+				return "E — Table d'assemblage"
 			"bowl":
 				if player.is_carrying() and player.carried_item.get("kind", "") == "catfood":
 					return "E — Verser la nourriture pour chat"
@@ -729,6 +758,8 @@ func _floor_prompt() -> String:
 			if item.has("os") or item.has("proxy"):
 				return "Clic gauche — Poser le serveur (E fonctionne aussi)"
 			return "Apporte ce serveur à l'établi (E) pour installer un OS"
+		"kit":
+			return "Kit serveur neuf — apporte-le à la TABLE D'ASSEMBLAGE (E) du Data Hall"
 		"furniture":
 			return "Clic gauche — Poser l'armoire (E fonctionne aussi)"
 		"battery":
@@ -787,7 +818,7 @@ func _update_prompt() -> void:
 func _try_interact() -> void:
 	if computer_os.visible or install_ui.visible or rack_ui.visible \
 			or bench_ui.visible or storage_ui.visible or pause_menu.visible or travel_ui.visible \
-			or bills_ui.visible:
+			or bills_ui.visible or assembly_ui.visible:
 		return
 	# Serveur EN PANNE proche : on le prend en main pour l'établi.
 	if not player.is_carrying():
@@ -823,6 +854,8 @@ func _try_interact() -> void:
 					bills_ui.open()
 				"bowl":
 					_bowl_interact()
+				"assembly":
+					_assembly_interact()
 		return
 	# Caresse du chat : en dernier recours (mobilier prioritaire — le chat ne
 	# bloque jamais l'accès à une armoire, l'établi ou le PC).
@@ -846,6 +879,27 @@ func _radio_toggle() -> void:
 		return
 	radio_unit.toggle()
 	hud.toast("Radio %s !" % ("éteinte" if not radio_unit.on else "allumée — le garage a de l'ambiance"))
+
+
+func _assembly_interact() -> void:
+	## Table d'assemblage (Data Hall) : on y assemble un KIT serveur neuf
+	## (site « Neuf » du PC Pro) en un vrai serveur (~20 s). Un kit ne se pose
+	## pas au sol : il se porte ici.
+	if player.is_carrying() and player.carried_item.get("kind", "") == "kit":
+		assembly_ui.open(player.carried_item)
+		return
+	if player.is_carrying():
+		hud.toast("Cette table assemble des KITS serveurs neufs (site Neuf du PC) — pas ce que tu portes.")
+		return
+	hud.toast("La table d'assemblage assemble des kits serveurs neufs. Commande un serveur sur mesure sur le site « Neuf » du PC (Data Hall).")
+
+
+func _on_kit_assembled(item: Dictionary) -> void:
+	## Le kit assemblé devient un VRAI serveur dans les mains du joueur : il
+	## attend un OS à l'établi, puis se pose / se monte comme n'importe quel
+	## serveur (avec les specs choisies au configurateur).
+	player.carried_item = item
+	hud.toast("%s assemblé ! Installe un OS à l'établi (E)." % item.get("name", "Serveur"))
 
 
 func _pet_cat(cat: GarageCat) -> void:
@@ -1536,7 +1590,7 @@ func _try_click_car() -> bool:
 	## Fonctionne MAINS VIDES (c'est le cas d'usage normal).
 	if computer_os.visible or install_ui.visible or rack_ui.visible \
 			or bench_ui.visible or storage_ui.visible or pause_menu.visible or travel_ui.visible \
-			or bills_ui.visible:
+			or bills_ui.visible or assembly_ui.visible:
 		return false
 	var pos := get_global_mouse_position()
 	for it in interactables:
@@ -1555,7 +1609,7 @@ func _try_place_click() -> void:
 	## Clic gauche : pose sur la case sous le curseur (n'importe où dans le local).
 	if computer_os.visible or install_ui.visible or rack_ui.visible \
 			or bench_ui.visible or storage_ui.visible or pause_menu.visible or travel_ui.visible \
-			or bills_ui.visible:
+			or bills_ui.visible or assembly_ui.visible:
 		return
 	if not player.is_carrying():
 		return
@@ -1569,6 +1623,9 @@ func _place_at(cell: Vector2i) -> bool:
 	var kind := str(item.get("kind", ""))
 	if kind == "server" and not item.has("os") and not item.has("proxy"):
 		hud.toast("Installe d'abord un OS (ou un proxy) à l'établi !")
+		return true
+	if kind == "kit":
+		hud.toast("Un kit serveur ne se pose pas — apporte-le à la TABLE D'ASSEMBLAGE (E) du Data Hall.")
 		return true
 	if kind == "catfood":
 		hud.toast("Verse la nourriture dans la GAMELLE (près de l'étagère) — appuie sur E devant elle.")
@@ -1670,7 +1727,8 @@ func _carried_placable() -> bool:
 		# posent ensuite au sol / dans une armoire).
 		return player.carried_item.has("os") or player.carried_item.has("proxy")
 	# La nourriture pour chat n'est PAS plaçable au sol : elle se verse dans
-	# la gamelle (interaction E) — pas de cases vertes de pose.
+	# la gamelle (interaction E) — pas de cases vertes de pose. Les KITS
+	# serveurs neufs non plus : ils se portent à la table d'assemblage.
 	return kind == "furniture" or kind == "battery" or kind == "clim" or kind == "decor" or kind == "switch"
 
 
