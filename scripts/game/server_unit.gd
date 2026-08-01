@@ -17,6 +17,13 @@ var was_full_announced := false
 var cable: Node2D = null  # câble réseau (libéré au déranquage / au montage en armoire)
 var bake_mode := false    # rendu procédural complet pour le bake tool
 
+## Usure : 0 (neuf) à 1 (vieux). Augmente à chaque tick de fonctionnement.
+## Plus l'usure est haute, plus la probabilité de PANNE augmente.
+var wear := 0.0
+## Panne : le serveur ne produit plus rien (revenus à zéro) jusqu'à la
+## maintenance (E près du serveur). Sauvegardé dans le monde.
+var broken := false
+
 var _body: Sprite2D
 var _led: Sprite2D
 var _bubble: Sprite2D
@@ -96,26 +103,37 @@ func _draw() -> void:
 	if _body != null:
 		_body.scale = Vector2.ONE * (0.6 if rack != null else 1.0)
 	# Serveur arrêté par un incident (surchauffe, DDoS non bloqué, coupure de
-	# courant sans UPS) : règle centralisée dans GameManager.server_stopped.
-	var stopped := GameManager.server_stopped(self)
+	# courant sans UPS) ou par une PANNE : règle centralisée dans
+	# GameManager.server_stopped (incidents) + broken (panne locale).
+	var stopped := GameManager.server_stopped(self) or broken
 	if _led != null:
-		var led_name := "led_red" if (is_saturated() or stopped) \
+		var led_name := "led_red" if (is_saturated() or stopped or broken) \
 			else ("led_green" if configured() else "led_grey")
 		_led.texture = BakedAssets.tex(led_name)
 		_led.position = Vector2(-SIZE.x / 2 + 6, -SIZE.y / 2 + 10)
 	if _bubble != null:
-		_bubble.visible = is_saturated() and rack == null
+		_bubble.visible = is_saturated() and rack == null and not broken
 	# Texte d'état : tag compact D (dédié) ou V (VPS) selon l'OS installé
 	var font := ThemeDB.fallback_font
 	var label := "%d/%d" % [clients, max_clients()]
 	if not configured():
 		label = "SANS OS"
+	elif broken:
+		label = "PANNE"
 	elif stopped:
 		label = "ARRÊT"
 	else:
 		label = OSList.hosting_short(os_id) + " " + label
 	draw_string(font, Vector2(-SIZE.x / 2 + 11, -SIZE.y / 2 + 13), label, \
 		HORIZONTAL_ALIGNMENT_LEFT, SIZE.x - 14, 9, Color(1, 1, 1, 0.9))
+	# Usure : petite barre discrète sous le label (verte -> orange -> rouge)
+	if configured() and wear > 0.02:
+		var bw := 18.0
+		var wx := -SIZE.x / 2 + 11
+		var wy := -SIZE.y / 2 + 19
+		draw_rect(Rect2(wx, wy, bw, 2), Color(0, 0, 0, 0.45))
+		var wcol := Color(0.3, 0.9, 0.4).lerp(Color(0.95, 0.35, 0.25), clampf(wear, 0.0, 1.0))
+		draw_rect(Rect2(wx, wy, bw * clampf(wear, 0.0, 1.0), 2), wcol)
 
 
 # ------------------------------------------------------------------ bake

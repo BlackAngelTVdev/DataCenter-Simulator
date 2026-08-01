@@ -34,6 +34,10 @@ static func persist(garage: GarageScene) -> bool:
 		"location": GameManager.location,
 		"location_unlocked": GameManager.location_unlocked,
 		"deliveries": GameManager.deliveries.duplicate(true),
+		"cat_fed": GameManager.cat_fed,
+		"cat_adopted": GameManager.cat_adopted,
+		"contracts": GameManager.contracts.duplicate(true),
+		"mails_seen": GameManager.mails_seen.keys(),
 		"pos": {
 			"0": _vec_to_arr(GameManager.player_pos.get(0, Vector2.ZERO)),
 			"1": _vec_to_arr(GameManager.player_pos.get(1, Vector2.ZERO)),
@@ -88,6 +92,23 @@ static func load_into(garage: GarageScene) -> void:
 	GameManager.clim_limit = int(data.get("clim_limit", 6))
 	GameManager.location = int(data.get("location", 0))
 	GameManager.location_unlocked = bool(data.get("location_unlocked", false))
+	GameManager.cat_fed = bool(data.get("cat_fed", false))
+	GameManager.cat_adopted = bool(data.get("cat_adopted", false))
+	# Contrats clients signés (app Mail) : revenus garantis par mois.
+	GameManager.contracts = {}
+	var contracts_raw: Variant = data.get("contracts", {})
+	if typeof(contracts_raw) == TYPE_DICTIONARY:
+		var cd: Dictionary = contracts_raw
+		for cid in cd:
+			var cv: Variant = cd[cid]
+			if typeof(cv) == TYPE_DICTIONARY:
+				GameManager.contracts[str(cid)] = cv.duplicate(true)
+	# E-mails déjà reçus (ils ne réapparaissent pas).
+	GameManager.mails_seen = {}
+	var mails_raw: Variant = data.get("mails_seen", [])
+	if typeof(mails_raw) == TYPE_ARRAY:
+		for mid in mails_raw:
+			GameManager.mails_seen[str(mid)] = true
 	_restore_pos(data.get("pos", {}))
 
 	var deliveries: Variant = data.get("deliveries", [])
@@ -155,6 +176,12 @@ static func restore_item(raw: Variant) -> Dictionary:
 		if item.has("os"):
 			base["os"] = item["os"]
 			base["os_name"] = item.get("os_name", "")
+		# L'état d'usure suit le matériel (revente selon l'état) : on le
+		# préserve à travers les sauvegardes.
+		if item.has("wear"):
+			base["wear"] = item["wear"]
+		if item.has("broken"):
+			base["broken"] = item["broken"]
 		return base
 	return _fix_color(item)
 

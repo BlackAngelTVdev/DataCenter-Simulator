@@ -292,6 +292,23 @@ const ABOS := [
 # ------------------------------------------------------------------
 #  Helper : tout le catalogue mélangé, pour la boutique en ligne.
 # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+#  VIE DU GARAGE — petites douceurs. La nourriture pour chat se verse
+#  dans la GAMELLE (à côté de l'étagère) : le chat devient un habitué
+#  qui reste dans le garage.
+# ------------------------------------------------------------------
+const GOODIES := [
+	{
+		"id": "cat_food",
+		"kind": "catfood",
+		"name": "Nourriture pour chat",
+		"desc": "Une boîte de croquettes premier prix. Verse-la dans la gamelle (à côté de l'étagère) pour adopter le chat du quartier.",
+		"price": 5,
+		"color": Color(0.78, 0.55, 0.3),
+	},
+]
+
+
 static func shop_items() -> Array:
 	var items := []
 	items.append_array(SERVERS)
@@ -302,6 +319,7 @@ static func shop_items() -> Array:
 	items.append_array(UPGRADES)
 	items.append_array(ABOS)
 	items.append_array(PARTNERSHIPS)
+	items.append_array(GOODIES)
 	return items
 
 
@@ -407,9 +425,15 @@ static func resale_value(item: Dictionary) -> int:
 	## Valeur de revente d'un objet stocké, arrondie à l'unité. La reprise suit
 	## le MARCHÉ DU JOUR (Tech'Occase rachète au prix actuel) : si le marché
 	## monte, on revend plus cher — c'est le cœur du trading. Un serveur avec
-	## OS installé vaut un peu plus (l'OS reste dessus).
+	## OS installé vaut un peu plus (l'OS reste dessus). L'ÉTAT compte aussi :
+	## un serveur usé ou en panne se revend beaucoup moins cher.
 	var base := float(market_price(item))
 	var ratio := RESALE_RATIO
-	if str(item.get("kind", "")) == "server" and item.has("os"):
-		ratio += 0.1  # +10% si prêt à brancher (OS déjà installé)
+	if str(item.get("kind", "")) == "server":
+		if item.has("os"):
+			ratio += 0.1  # +10% si prêt à brancher (OS déjà installé)
+		if item.get("broken", false):
+			ratio *= 0.5  # en panne : moitié prix
+		elif float(item.get("wear", 0.0)) > 0.5:
+			ratio *= 0.75  # bien usé : -25%
 	return maxi(1, int(round(base * ratio)))
