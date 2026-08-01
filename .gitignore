@@ -7,3 +7,6 @@
 desktop-v2.db
 desktop-v2.db-shm
 desktop-v2.db-wal
+
+# Raccourci local vers l'exécutable Godot (machine de dev uniquement)
+Godot_v4.7.1-stable_win64.exe.lnk
