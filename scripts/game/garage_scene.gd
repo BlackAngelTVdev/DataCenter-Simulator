@@ -64,6 +64,14 @@ const CRATE_SPOTS := [
 	Vector2(672, 600),
 ]
 
+# Spots de livraison du DATA HALL (bas de salle, à côté de la voiture) :
+# chaque local affiche SES caisses (commandes passées SUR PLACE).
+const LOCAL2_CRATE_SPOTS := [
+	Vector2(720, 690),
+	Vector2(840, 690),
+	Vector2(960, 690),
+]
+
 const AUTOSAVE_INTERVAL := 60.0  # sauvegarde automatique toutes les 60 s
 
 ## Incidents réseau (DDoS / coupures) : probabilité de départ par tick (1 s)
@@ -427,6 +435,18 @@ func _build_interactables() -> void:
 		add_child(bench_unit)
 		interactables.append(bench_unit)
 
+		# Le Data Hall a SON point de livraison (bas de salle) : les commandes
+		# passées sur le PC Pro y arrivent, pas au garage.
+		var delivery2 := Interactable.new()
+		delivery2.kind = "delivery"
+		delivery2.label = "LIVRAISONS"
+		delivery2.box_size = Vector2(44, 20)
+		delivery2.body_color = Color(0.42, 0.36, 0.24)
+		delivery2.blocks = false
+		delivery2.position = Vector2(800, 700)
+		add_child(delivery2)
+		interactables.append(delivery2)
+
 	# Voiture garée dans la rue : E ou clic ouvre le menu des lieux (TravelUI)
 	var car := Interactable.new()
 	car.kind = "car"
@@ -477,6 +497,11 @@ func _build_ui() -> void:
 	computer_os.name = "ComputerOS"
 	computer_os.premium = (location_id == 1)
 	add_child(computer_os)
+	# Un achat dans le navigateur (Tech'Occase) rafraîchit IMMÉDIATEMENT les
+	# caisses du local courant : le colis arrive sur place sans recharger la
+	# scène. (Le browser est construit par ComputerOS._ready, déjà exécuté.)
+	if is_instance_valid(computer_os) and is_instance_valid(computer_os.browser):
+		computer_os.browser.purchased.connect(_refresh_delivery_crates)
 
 	install_ui = OSInstallUI.new()
 	install_ui.name = "OSInstallUI"
@@ -608,7 +633,9 @@ func _nearest_interactable(max_dist: float) -> Node:
 					and not carried.has("os") and not carried.has("proxy")):
 				continue
 		else:
-			if it.kind == "delivery" and GameManager.deliveries.is_empty():
+			# Le point de livraison n'est actif que s'il y a un colis DESTINÉ
+			# à CE local (chaque hangar reçoit ses propres commandes).
+			if it.kind == "delivery" and _deliveries_here() == 0:
 				continue
 			# L'établi du garage ne sert que pour un serveur SANS OS : sinon il
 			# bloquerait la pose (le joueur resterait « coincé » à côté).
@@ -660,7 +687,7 @@ func _prompt_for(it: Node) -> String:
 						return "E — Installer l'OS sur %s" % item.get("name", "")
 				return ""
 			"delivery":
-				return "E — Récupérer la livraison (%d)" % GameManager.deliveries.size()
+				return "E — Récupérer la livraison (%d)" % _deliveries_here()
 			"car":
 				return "E — Prendre la voiture"
 			"desk":
@@ -938,13 +965,34 @@ func _remove_switch(rack: RackUnit) -> void:
 	hud.toast("Switch retiré ! Les serveurs de l'armoire ne sont plus branchés au réseau.")
 
 
+func _deliveries_here() -> int:
+	## Nombre de colis livrés pour LE LOCAL COURANT (tag 'loc' posé à l'achat
+	## dans os_browser). Les commandes passées au garage arrivent au garage,
+	## celles du Data Hall arrivent au Data Hall. Rétrocompat : une livraison
+	## sans tag (ancienne sauvegarde) est considérée destinée au garage (0).
+	var n := 0
+	for d in GameManager.deliveries:
+		if int(d.get("loc", 0)) == location_id:
+			n += 1
+	return n
+
+
 func _delivery_pickup() -> void:
-	if GameManager.deliveries.is_empty():
+	if _deliveries_here() == 0:
 		return
 	if player.is_carrying():
 		hud.toast("Dépose d'abord le colis que tu portes !")
 		return
-	var item: Dictionary = GameManager.deliveries.pop_front()
+	# On ne ramasse que la PREMIÈRE livraison de ce local (les colis de
+	# l'autre hangar restent là-bas, sur leur point de livraison).
+	var idx := -1
+	for i in range(GameManager.deliveries.size()):
+		if int(GameManager.deliveries[i].get("loc", 0)) == location_id:
+			idx = i
+			break
+	if idx < 0:
+		return
+	var item: Dictionary = GameManager.deliveries.pop_at(idx)
 	player.carried_item = item
 	hud.toast("Colis récupéré : %s ! Ramène-le à l'établi." % item.get("name", ""))
 	_refresh_delivery_crates()
@@ -1991,6 +2039,9 @@ func _surprise_delivery() -> void:
 	if pool.is_empty():
 		return
 	var item: Dictionary = pool[randi() % pool.size()].duplicate(true)
+	# La livraison surprise arrive AU GARAGE (local 0) : l'événement n'est
+	# déclenché que dans le garage, on tag le colis pour qu'il y reste.
+	item["loc"] = 0
 	GameManager.deliveries.append(item)
 	_refresh_delivery_crates()
 	hud.toast("Livraison surprise : un livreur s'est trompé d'adresse — %s gratuit devant la porte !" % item.get("name", "colis"))
@@ -2022,17 +2073,17 @@ func _ambient_toast() -> void:
 # et l'argent est visible dans la boutique Tech'Occase + via les toasts.
 
 func _refresh_delivery_crates() -> void:
-	# Les livraisons arrivent toujours au garage (cour de livraison).
-	if location_id != 0:
-		return
+	# Chaque local affiche SES caisses : les commandes passées sur place y
+	# arrivent (spots propres au garage et au Data Hall).
 	for c in crates:
 		c.queue_free()
 	crates.clear()
-	var n := mini(GameManager.deliveries.size(), CRATE_SPOTS.size())
+	var spots: Array = CRATE_SPOTS if location_id == 0 else LOCAL2_CRATE_SPOTS
+	var n := mini(_deliveries_here(), spots.size())
 	for i in range(n):
 		var crate := Sprite2D.new()
 		crate.texture = BakedAssets.tex("crate")
-		crate.position = CRATE_SPOTS[i]
+		crate.position = spots[i]
 		crates_layer.add_child(crate)
 		crates.append(crate)
 

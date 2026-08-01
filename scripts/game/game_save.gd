@@ -205,6 +205,10 @@ static func restore_item(raw: Variant) -> Dictionary:
 			base["wear"] = item["wear"]
 		if item.has("broken"):
 			base["broken"] = item["broken"]
+		# Livraison : le hangar de DESTINATION (tag 'loc' posé à l'achat) —
+		# chaque colis arrive dans le local où la commande a été passée.
+		if item.has("loc"):
+			base["loc"] = int(item["loc"])
 		return base
 	return _fix_color(item)
 

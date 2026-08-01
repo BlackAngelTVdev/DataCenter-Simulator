@@ -11,6 +11,7 @@ extends PanelContainer
 ## GameManager (stats recalculées au tick).
 
 signal closed
+signal purchased  # un achat de matériel vient d'être passé (rafraîchit les caisses)
 
 const SITE_URL := "https://tech-occase.bian/"
 const MONITOR_URL := "https://monitor.bian/"
@@ -1210,8 +1211,19 @@ func _buy(item: Dictionary) -> void:
 	GameManager.cash -= price
 	match kind:
 		"server", "furniture", "switch", "battery", "clim", "catfood", "decor":
-			GameManager.deliveries.append(item.duplicate(true))
-			_flash("Commande passée ! Livraison à l'extérieur du garage (porte du bas).")
+			# Chaque colis est livré dans LE HANGAR où la commande a été passée
+			# (garage ou Data Hall) : tag 'loc' lu par garage_scene pour le
+			# point de livraison, le prompt et les caisses.
+			var parcel := item.duplicate(true)
+			parcel["loc"] = GameManager.location
+			GameManager.deliveries.append(parcel)
+			# Le garage met à jour SES caisses immédiatement (pas besoin de
+			# recharger la scène pour voir le colis arriver).
+			purchased.emit()
+			if GameManager.location == 1:
+				_flash("Commande passée ! Livraison au Data Hall (bas de la salle).")
+			else:
+				_flash("Commande passée ! Livraison à l'extérieur du garage (porte du bas).")
 		"upgrade":
 			GameManager.mark_owned(str(item["id"]))
 			if item["id"] == "upgrade_firewall":
