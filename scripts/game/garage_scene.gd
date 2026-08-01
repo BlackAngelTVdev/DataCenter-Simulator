@@ -891,16 +891,20 @@ func _mount_into_rack(server: ServerUnit) -> void:
 		server.cable = null
 	rack_ui.close()
 	_recompute_stats()
-	_mount_toast(server.item.get("name", ""), rack)
+	_mount_toast(server.item.get("name", ""), rack, server)
 
 
-func _mount_toast(server_name: String, rack: RackUnit) -> void:
+func _mount_toast(server_name: String, rack: RackUnit, server: ServerUnit = null) -> void:
 	## Toast de montage UNIQUE (montage auto par E ET bouton du panneau) : si
 	## l'armoire n'a pas de switch, prévenir que le serveur ne rapportera rien.
-	if rack.has_switch():
-		hud.toast("%s monté dans l'armoire !" % server_name)
-	else:
+	## Au DATA HALL, prévenir aussi si le switch n'a plus de PORT libre (le
+	## serveur monté n'est pas branché) — la gestion réseau y est complexe.
+	if not rack.has_switch():
 		hud.toast("%s monté dans l'armoire, mais elle n'a PAS de switch réseau — il ne rapportera rien ! Achète un switch sur Tech'Occase." % server_name)
+	elif server != null and GameManager.location == 1 and rack.port_exhausted_for(server):
+		hud.toast("%s monté, mais le switch est SATURÉ en ports (%d ports max) — il n'est pas branché ! Achète un switch 24 ports ou retire un serveur." % [server_name, rack.switch_ports()])
+	else:
+		hud.toast("%s monté dans l'armoire !" % server_name)
 
 
 func _remove_battery(rack: RackUnit) -> void:
@@ -1065,8 +1069,10 @@ func _apply_offline_income() -> void:
 	var elapsed := now - last
 	var income := 0.0
 	if not GameManager.overheated:
+		# Seuls les serveurs EN LIGNE travaillent pendant l'absence : un serveur
+		# sans switch / sans port (Data Hall) ou en panne ne rapporte pas non plus.
 		for s in placed_servers:
-			if s.configured():
+			if _server_running(s):
 				income += s.income_per_sec()
 	# Les contrats clients (revenus GARANTIS par mois) s'accumulent aussi
 	# pendant l'absence — c'est leur promesse.
@@ -1343,11 +1349,11 @@ func _place_at(cell: Vector2i) -> bool:
 	if kind == "server":
 		var adj_rack := _adjacent_rack(cell)
 		if adj_rack != null:
-			_spawn_server_mounted(item, adj_rack)
+			var ms := _spawn_server_mounted(item, adj_rack)
 			# Succès « Premier serveur » : un serveur monté compte aussi.
 			GameManager.servers_placed_total += 1
 			player.carried_item = {}
-			_mount_toast(item.get("name", ""), adj_rack)
+			_mount_toast(item.get("name", ""), adj_rack, ms)
 			return true
 		# Pose directe sur une armoire = montage, PAS une pose au sol.
 		if not _cell_has_free_rack(cell):
@@ -1704,6 +1710,21 @@ func _recompute_stats() -> void:
 	GameManager.proxy_boost = _proxy_boost()
 
 
+func _ports_usage() -> String:
+	## Utilisation des PORTS RÉSEAU du local courant (DATA HALL uniquement) :
+	## "utilisés/capacité" cumulés sur les armoires. Au garage (chill), il n'y
+	## a pas de gestion de ports : on renvoie une chaîne vide (monitor l'occulte).
+	if location_id != 1:
+		return ""
+	var used := 0
+	var cap := 0
+	for r in placed_racks:
+		if r.has_switch():
+			used += r.ports_used()
+			cap += r.switch_ports()
+	return "%d / %d" % [used, cap]
+
+
 func _proxy_boost() -> int:
 	## Bande passante SUPPLÉMENTAIRE des reverse proxies EN LIGNE du local
 	## courant (les serveurs qui exécutent un proxy, pas arrêtés). C'est ce
@@ -1751,11 +1772,21 @@ func _on_tick() -> void:
 			s.queue_redraw()
 
 	# Pendant un incident non protégé, les clients FUYENT les serveurs arrêtés.
-	if GameManager.ddos_active and not GameManager.firewall_owned:
-		for s in placed_servers:
-			if s.configured() and s.clients > 0:
-				s.clients = maxi(0, s.clients - maxi(1, int(float(s.clients) * 0.25)))
-				s.queue_redraw()
+	if GameManager.ddos_active:
+		var flee := 0.0
+		if GameManager.firewall_owned:
+			# DATA HALL : le pare-feu a une CAPACITÉ (FIREWALL_CAPACITY clients).
+			# Au-delà, il sature : seuls les clients EXCÉDENTAIRES fuient.
+			# Au garage (chill), le pare-feu protège sans limite.
+			if GameManager.location == 1 and total_clients > GameManager.FIREWALL_CAPACITY:
+				flee = float(total_clients - GameManager.FIREWALL_CAPACITY) / float(total_clients)
+		else:
+			flee = 0.25  # sans pare-feu : 25% des clients fuient par tick
+		if flee > 0.0:
+			for s in placed_servers:
+				if s.configured() and s.clients > 0:
+					s.clients = maxi(0, s.clients - maxi(1, int(float(s.clients) * flee)))
+					s.queue_redraw()
 	if GameManager.outage_active:
 		for s in placed_servers:
 			if s.configured() and s.clients > 0 \

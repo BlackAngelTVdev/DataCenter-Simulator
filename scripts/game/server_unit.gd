@@ -156,6 +156,9 @@ func _draw() -> void:
 	# Texte d'état : tag compact D (dédié) / V (VPS) / P (proxy) selon l'OS installé
 	var font := ThemeDB.fallback_font
 	var label := "%d/%d" % [clients, max_clients()]
+	# Data Hall : le switch n'a plus de port libre pour ce serveur (gestion
+	# réseau complexe) — il n'est pas branché, alors qu'au garage c'est chill.
+	var no_port := GameManager.location == 1 and rack != null and rack.port_exhausted_for(self)
 	if not configured():
 		label = "SANS OS"
 	elif is_proxy():
@@ -164,13 +167,13 @@ func _draw() -> void:
 		if broken:
 			label = "PROXY · PANNE"
 		elif stopped:
-			label = "PROXY · ARRÊT"
+			label = "PROXY · ARRÊT" if not no_port else "PROXY · PAS DE PORT"
 		else:
 			label = "PROXY"
 	elif broken:
 		label = "PANNE"
 	elif stopped:
-		label = "ARRÊT"
+		label = "PAS DE PORT" if no_port else "ARRÊT"
 	else:
 		label = OSList.hosting_short(os_id) + " " + label
 	draw_string(font, Vector2(-SIZE.x / 2 + 11, -SIZE.y / 2 + 13), label, \
