@@ -20,6 +20,8 @@ static func subdir_for(name: String) -> String:
 		return "racks/"
 	if base.begins_with("clim_"):
 		return "clims/"
+	if base.begins_with("decor_"):
+		return "decor/"
 	if base.begins_with("bg_"):
 		return "worlds/"
 	if base.begins_with("wallpaper_") or base.begins_with("icon_"):
@@ -72,6 +74,11 @@ static func clim_tex(item: Dictionary) -> Texture2D:
 	return t if t != null else tex("block")
 
 
+static func decor_tex(item: Dictionary) -> Texture2D:
+	var t := tex("decor_" + str(item.get("id", "")))
+	return t if t != null else tex("block")
+
+
 static func item_tex(item: Dictionary) -> Texture2D:
 	## Petite icône « objet » (colis / contenu d'emplacement) pour un item.
 	var kind := str(item.get("kind", ""))
@@ -82,4 +89,6 @@ static func item_tex(item: Dictionary) -> Texture2D:
 			return tex("rack_" + str(item.get("id", "")))
 		"clim":
 			return tex("clim_" + str(item.get("id", "")))
+		"decor":
+			return tex("decor_" + str(item.get("id", "")))
 	return tex("block")

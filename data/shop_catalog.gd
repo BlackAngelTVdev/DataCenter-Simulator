@@ -309,6 +309,42 @@ const GOODIES := [
 ]
 
 
+# ------------------------------------------------------------------
+#  DÉCO — à poser où on veut au sol, juste pour le style (et parfois un
+#  petit bonus). heat_bonus = fraction de chaleur EN MOINS dans le local
+#  (0.01 = -1%). Une plante refroidit un peu ; une affiche ou un néon, non.
+# ------------------------------------------------------------------
+const DECOR := [
+	{
+		"id": "deco_poster",
+		"kind": "decor",
+		"name": "Affiche rétro",
+		"desc": "Une vieille affiche de concert d'un groupe qu'on ne connaît pas. Style pur.",
+		"price": 40,
+		"heat_bonus": 0.0,
+		"color": Color(0.85, 0.45, 0.6),
+	},
+	{
+		"id": "deco_plant",
+		"kind": "decor",
+		"name": "Plante verte",
+		"desc": "Une vraie plante : -1% de chaleur dans le local. La nature refroidit.",
+		"price": 60,
+		"heat_bonus": 0.01,
+		"color": Color(0.35, 0.75, 0.4),
+	},
+	{
+		"id": "deco_neon",
+		"kind": "decor",
+		"name": "Néon OPEN 24/7",
+		"desc": "Le néon des vrais data centers. Ça fait pro (et ça brille).",
+		"price": 120,
+		"heat_bonus": 0.0,
+		"color": Color(1.0, 0.35, 0.4),
+	},
+]
+
+
 static func shop_items() -> Array:
 	var items := []
 	items.append_array(SERVERS)
@@ -320,6 +356,7 @@ static func shop_items() -> Array:
 	items.append_array(ABOS)
 	items.append_array(PARTNERSHIPS)
 	items.append_array(GOODIES)
+	items.append_array(DECOR)
 	return items
 
 
