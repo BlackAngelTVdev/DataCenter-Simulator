@@ -27,7 +27,7 @@ const CHASSIS := [
 		"slots": 2,
 		"watts": 40,
 		"heat": 0.5,
-		"price": 90,
+		"price": 450,
 	},
 	{
 		"id": "ch_2u",
@@ -36,7 +36,7 @@ const CHASSIS := [
 		"slots": 5,
 		"watts": 80,
 		"heat": 1.0,
-		"price": 190,
+		"price": 950,
 	},
 	{
 		"id": "ch_4u",
@@ -45,7 +45,7 @@ const CHASSIS := [
 		"slots": 9,
 		"watts": 140,
 		"heat": 1.8,
-		"price": 360,
+		"price": 1800,
 	},
 ]
 
@@ -58,7 +58,7 @@ const CPUS := [
 		"income": 0.45,
 		"watts": 60,
 		"heat": 1.0,
-		"price": 80,
+		"price": 400,
 	},
 	{
 		"id": "cpu_octa",
@@ -68,7 +68,7 @@ const CPUS := [
 		"income": 0.55,
 		"watts": 110,
 		"heat": 1.8,
-		"price": 220,
+		"price": 1100,
 	},
 	{
 		"id": "cpu_hexadec",
@@ -78,7 +78,7 @@ const CPUS := [
 		"income": 0.65,
 		"watts": 190,
 		"heat": 3.2,
-		"price": 480,
+		"price": 2400,
 	},
 ]
 
@@ -90,7 +90,7 @@ const RAMS := [
 		"slots": 1,
 		"watts": 10,
 		"heat": 0.1,
-		"price": 50,
+		"price": 250,
 	},
 	{
 		"id": "ram_64",
@@ -99,7 +99,7 @@ const RAMS := [
 		"slots": 3,
 		"watts": 18,
 		"heat": 0.2,
-		"price": 120,
+		"price": 600,
 	},
 	{
 		"id": "ram_128",
@@ -108,7 +108,7 @@ const RAMS := [
 		"slots": 6,
 		"watts": 34,
 		"heat": 0.4,
-		"price": 280,
+		"price": 1400,
 	},
 ]
 
@@ -120,7 +120,7 @@ const DISKS := [
 		"slots": 1,
 		"watts": 8,
 		"heat": 0.1,
-		"price": 40,
+		"price": 200,
 	},
 	{
 		"id": "disk_2t",
@@ -129,7 +129,7 @@ const DISKS := [
 		"slots": 3,
 		"watts": 14,
 		"heat": 0.2,
-		"price": 110,
+		"price": 550,
 	},
 	{
 		"id": "disk_4t",
@@ -138,7 +138,7 @@ const DISKS := [
 		"slots": 6,
 		"watts": 26,
 		"heat": 0.4,
-		"price": 260,
+		"price": 1300,
 	},
 ]
 
