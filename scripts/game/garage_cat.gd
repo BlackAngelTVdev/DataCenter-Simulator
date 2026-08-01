@@ -26,6 +26,11 @@ var bowl_pos := Vector2.ZERO
 ## La gamelle vient d'être vidée par le chat (garage_scene rafraîchit l'affichage).
 signal bowl_emptied
 
+## Positions des ACCESSOIRES pour chat posés dans le garage (arbre à chat,
+## litière, griffoir, panier — rempli par garage_scene via _refresh_cat_spots).
+## Le chat adopté s'y rend de temps en temps pour les UTILISER.
+var spots: Array = []
+
 var _target := Vector2.ZERO
 var _life := 0.0
 var _leaving := false
@@ -48,6 +53,11 @@ var _going_eat := false
 var _eating := false
 var _eat_left := 0.0
 
+## Visite d'un accessoire : délai avant la prochaine envie d'utiliser un
+## accessoire (secondes), puis phase « va utiliser » (_going_spot).
+var _spot_cooldown := 15.0
+var _going_spot := false
+
 
 func _ready() -> void:
 	_rng.randomize()
@@ -66,6 +76,7 @@ func _build_sprite() -> void:
 func _pick_target() -> void:
 	## Zone centrale du garage (loin du mobilier collé aux murs ET de la
 	## voiture garée : CAR_RECT ≈ x 40..240, y 390..472 — on reste au-dessus).
+	_going_spot = false
 	var x := _rng.randf_range(128.0, 800.0)
 	var y := _rng.randf_range(96.0, 378.0)
 	_target = Vector2(x, y)
@@ -77,12 +88,16 @@ func _process(delta: float) -> void:
 	# Le chat adopté ne part JAMAIS ; il fait même des pauses (il s'assoit).
 	if adopted:
 		_rest -= delta
-		# Faim : si la gamelle est pleine, le chat y va de temps en temps.
-		if not _eating and not _going_eat:
+		# Faim ET envie d'utiliser un accessoire : la faim a la priorité.
+		if not _eating and not _going_eat and not _going_spot:
 			_hunger -= delta
+			_spot_cooldown -= delta
 			if _hunger <= 0.0 and GameManager.cat_fed and bowl_pos != Vector2.ZERO:
 				_going_eat = true
 				_target = bowl_pos
+			elif _spot_cooldown <= 0.0 and not spots.is_empty():
+				_going_spot = true
+				_target = spots[_rng.randi_range(0, spots.size() - 1)]
 		# Il mange : figé devant la gamelle, puis il la vide.
 		if _eating:
 			_eat_left -= delta
@@ -110,6 +125,14 @@ func _process(delta: float) -> void:
 			_eating = true
 			_eat_left = 3.5
 			return
+		# Arrivé sur un ACCESSOIRE (arbre, litière, griffoir, panier) : il
+		# l'utilise — un petit cœur d'activité, puis il se repose dessus.
+		if adopted and _going_spot and spots.has(_target):
+			_going_spot = false
+			_spot_cooldown = _rng.randf_range(25.0, 60.0)
+			_show_use_heart()
+			_rest = _rng.randf_range(4.0, 8.0)
+			return
 		if adopted and _rng.randf() < 0.30:
 			_rest = _rng.randf_range(1.5, 4.5)
 			return
@@ -136,7 +159,15 @@ func pet() -> void:
 	if _pet_cooldown > 0.0:
 		return
 	_pet_cooldown = PET_COOLDOWN
-	# Petit cœur au-dessus de la tête (texture cuite).
+	_show_use_heart()
+	# Il se couche / se repose un instant (petite pause satisfaite).
+	_rest = 2.0
+	queue_redraw()
+
+
+func _show_use_heart() -> void:
+	## Petit cœur au-dessus de la tête (texture cuite) : caresse OU utilisation
+	## d'un accessoire (arbre à chat, panier…). Animation unique partagée.
 	if _heart == null:
 		_heart = Sprite2D.new()
 		_heart.texture = BakedAssets.tex("cat_heart")
@@ -152,6 +183,3 @@ func pet() -> void:
 	_heart_tween.tween_callback(func() -> void:
 		if _heart != null:
 			_heart.visible = false)
-	# Il se couche / se repose un instant (petite pause satisfaite).
-	_rest = 2.0
-	queue_redraw()

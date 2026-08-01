@@ -1936,7 +1936,23 @@ func _spawn_decor(item: Dictionary, cell: Vector2i) -> DecorUnit:
 	units_layer.add_child(d)
 	placed_decos.append(d)
 	occupied_cells[key] = d
+	# Accessoire pour chat (cat_spot) : le chat adopté doit savoir où il est
+	# pour aller l'utiliser de temps en temps.
+	if not str(item.get("cat_spot", "")).is_empty():
+		_refresh_cat_spots()
 	return d
+
+
+func _refresh_cat_spots() -> void:
+	## Donne au chat adopté les positions des ACCESSOIRES pour chat posés
+	## (arbre à chat, litière, griffoir, panier) : il ira les utiliser.
+	if not is_instance_valid(garage_cat):
+		return
+	var spots: Array = []
+	for d in placed_decos:
+		if not str(d.item.get("cat_spot", "")).is_empty():
+			spots.append(d.position)
+	garage_cat.spots = spots
 
 
 func _create_cable(from: Vector2, to: Vector2, col: Color) -> Node2D:
@@ -2436,6 +2452,7 @@ func _spawn_garage_cat(adopted := false) -> void:
 	garage_cat.bowl_pos = _cell_center(_loc_bowl_cell())
 	garage_cat.bowl_emptied.connect(_on_bowl_emptied)
 	add_child(garage_cat)
+	_refresh_cat_spots()
 	if adopted:
 		hud.toast("Le chat ronronne près de toi. Il est chez lui, ici.")
 	else:
