@@ -104,6 +104,12 @@ var contracts := {}
 ## E-mails déjà reçus dans l'app Mail (id -> true) : ils ne réapparaissent pas.
 var mails_seen := {}
 
+## E-mails ALÉATOIRES (pub / offres / newsletters) reçus dans l'app Mail :
+## chaque instance porte un id unique (rand_<ts>_<n>) et reste dans la boîte
+## (persisté dans la sauvegarde). Les e-mails de clients, eux, restent dans
+## le pool statique MailPool.MAILS et sont dédupliqués via mails_seen.
+var received_mails: Array = []
+
 ## Statistiques recalculées par le garage à chaque tick (affichage HUD).
 var total_clients := 0
 var income_per_sec := 0.0
@@ -161,6 +167,7 @@ func reset() -> void:
 	cat_pets = 0
 	contracts = {}
 	mails_seen = {}
+	received_mails = []
 	total_clients = 0
 	income_per_sec = 0.0
 	heat_total = 0.0
@@ -205,6 +212,16 @@ func contract_income_per_sec() -> float:
 func accept_contract(cid: String, name: String, income_per_month: int) -> void:
 	## Signe un contrat (app Mail) : revenus garantis par mois.
 	contracts[cid] = {"name": name, "income_per_month": income_per_month}
+
+
+func receive_random_mail() -> void:
+	## Un e-mail aléatoire (pub / offre / newsletter) tombe dans la boîte Mail.
+	## Chaque instance a un id unique : rien n'est dédupliqué (contrairement
+	## aux e-mails de clients) — la boîte se remplit au fil de la partie.
+	var mail := MailPool.random_mail()
+	if mail.is_empty():
+		return  # pool vide : rien à recevoir (jamais en pratique)
+	received_mails.append(mail)
 
 
 func bandwidth_limit() -> int:
