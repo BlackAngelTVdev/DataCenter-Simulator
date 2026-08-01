@@ -288,13 +288,17 @@ func _place_player_at_saved_pos() -> void:
 func _process(_delta: float) -> void:
 	player.input_blocked = computer_os.visible or install_ui.visible or rack_ui.visible \
 		or bench_ui.visible or storage_ui.visible or pause_menu.visible or travel_ui.visible \
-		or bills_ui.visible or assembly_ui.visible
+		or bills_ui.visible or assembly_ui.visible or hud.panel_open
 	storage_ui.set_hands(player.is_carrying())
 	_update_prompt()
 	_refresh_placement_overlay()
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Panneau de notifications ouvert : E et les clics ne doivent pas déclencher
+	# d'action dans le monde (lire ses notifications ne doit pas poser/ouvrir).
+	if hud.panel_open:
+		return
 	if event is InputEventKey and event.pressed and not event.echo \
 			and event.is_action_pressed("interact"):
 		_try_interact()
@@ -824,7 +828,7 @@ func _update_prompt() -> void:
 func _try_interact() -> void:
 	if computer_os.visible or install_ui.visible or rack_ui.visible \
 			or bench_ui.visible or storage_ui.visible or pause_menu.visible or travel_ui.visible \
-			or bills_ui.visible or assembly_ui.visible:
+			or bills_ui.visible or assembly_ui.visible or hud.panel_open:
 		return
 	# Serveur EN PANNE proche : on le prend en main pour l'établi.
 	if not player.is_carrying():
