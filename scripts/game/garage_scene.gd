@@ -505,6 +505,7 @@ func _build_ui() -> void:
 	install_ui = OSInstallUI.new()
 	install_ui.name = "OSInstallUI"
 	install_ui.installed.connect(_on_os_installed)
+	install_ui.repaired.connect(_on_server_repaired)
 	add_child(install_ui)
 
 	rack_ui = RackUI.new()
@@ -519,6 +520,7 @@ func _build_ui() -> void:
 	bench_ui.name = "BenchUI"
 	bench_ui.place_requested.connect(_bench_place)
 	bench_ui.install_requested.connect(_bench_install)
+	bench_ui.repair_requested.connect(_bench_repair)
 	bench_ui.pickup_requested.connect(_bench_pickup)
 	add_child(bench_ui)
 
@@ -586,8 +588,9 @@ func _arm_event_timer() -> void:
 
 # ------------------------------------------------------------------ Interaction
 func _nearest_broken_server(max_dist: float) -> ServerUnit:
-	## Le serveur EN PANNE le plus proche (au sol ou monté) : la maintenance
-	## (E) est prioritaire tant qu'il est à portée.
+	## Le serveur EN PANNE le plus proche (au sol ou monté) : on le PREND en
+	## main (E) pour l'apporter à l'établi — la réparation se fait SUR
+	## l'établi, au prix du marché, et prend ~2 min (le slot est occupé).
 	var best: ServerUnit = null
 	var best_d := max_dist
 	for s in placed_servers:
@@ -600,22 +603,29 @@ func _nearest_broken_server(max_dist: float) -> ServerUnit:
 	return best
 
 
-func _repair_cost(s: ServerUnit) -> int:
-	## Coût de la maintenance : 25% du prix du serveur (jamais gratuit).
-	return maxi(10, int(s.item.get("price", 100) * 0.25))
-
-
-func _repair_server(s: ServerUnit) -> void:
-	## Maintenance : répare la panne (les revenus repartent). Coût en cash.
-	var cost := _repair_cost(s)
-	if GameManager.cash < cost:
-		hud.toast("Maintenance impossible : il faut %d $ !" % cost)
+func _take_broken_server(s: ServerUnit) -> void:
+	## Prendre un serveur EN PANNE (au sol ou monté) : il revient dans les
+	## mains, prêt à être porté à l'établi pour la réparation (~2 min).
+	if player.is_carrying():
+		hud.toast("Dépose d'abord ce que tu portes !")
 		return
-	GameManager.cash -= cost
-	s.broken = false
-	s.wear = clampf(s.wear * 0.3, 0.0, 1.0)
-	s.queue_redraw()
-	hud.toast("%s réparé ! (%d $ de maintenance)" % [s.item.get("name", "Serveur"), cost])
+	var carried := s.item.duplicate(true)
+	carried["wear"] = s.wear
+	carried["broken"] = true
+	player.carried_item = carried
+	if s.rack != null:
+		# Déranquer (comme le panneau d'armoire) : le serveur quitte la baie.
+		s.rack.mounted.erase(s)
+		s.rack.queue_redraw()
+	else:
+		occupied_cells.erase(s.cell)
+	if s.cable != null:
+		s.cable.queue_free()
+		s.cable = null
+	placed_servers.erase(s)
+	s.queue_free()
+	_recompute_stats()
+	hud.toast("Serveur en panne en main — apporte-le à l'établi pour le réparer (prix du marché, ~2 min).")
 
 
 func _nearest_interactable(max_dist: float) -> Node:
@@ -625,23 +635,24 @@ func _nearest_interactable(max_dist: float) -> Node:
 		if it is StorageUnit:
 			pass  # l'étagère est toujours accessible (déposer / reprendre)
 		elif it is BenchUnit:
-			# L'établi Pro ne sert que pour un serveur SANS OS (ou les mains
-			# vides pour récupérer) : sinon il volerait la priorité à la pose.
+			# L'établi Pro sert pour un serveur SANS OS OU EN PANNE (ou les
+			# mains vides pour récupérer) : sinon il volerait la priorité à la
+			# pose d'un serveur déjà configuré.
 			var carried := player.carried_item
 			if player.is_carrying() and not (carried.get("kind", "") == "server" \
-					and not carried.has("os") and not carried.has("proxy")):
+					and (carried.get("broken", false) or (not carried.has("os") and not carried.has("proxy")))):
 				continue
 		else:
 			# Le point de livraison n'est actif que s'il y a un colis DESTINÉ
 			# à CE local (chaque hangar reçoit ses propres commandes).
 			if it.kind == "delivery" and _deliveries_here() == 0:
 				continue
-			# L'établi du garage ne sert que pour un serveur SANS OS : sinon il
-			# bloquerait la pose (le joueur resterait « coincé » à côté).
+			# L'établi du garage sert pour un serveur SANS OS OU EN PANNE :
+			# sinon il bloquerait la pose (le joueur resterait « coincé »).
 			if it.kind == "bench":
 				var carried := player.carried_item
 				if not (player.is_carrying() and carried.get("kind", "") == "server" \
-						and not carried.has("os") and not carried.has("proxy")):
+						and (carried.get("broken", false) or (not carried.has("os") and not carried.has("proxy")))):
 					continue
 			# Le bureau ne doit pas voler la priorité sur la pose : si le joueur
 			# porte un objet plaçable, E pose — il ira voir les factures plus tard.
@@ -682,6 +693,8 @@ func _prompt_for(it: Node) -> String:
 			"bench":
 				if player.is_carrying():
 					var item := player.carried_item
+					if item.get("kind", "") == "server" and item.get("broken", false):
+						return "E — Réparer %s sur l'établi (%d $, ~2 min)" % [item.get("name", "Serveur"), ShopCatalog.repair_price(item)]
 					if item.get("kind", "") == "server" and not item.has("os") and not item.has("proxy"):
 						return "E — Installer l'OS sur %s" % item.get("name", "")
 				return ""
@@ -704,8 +717,11 @@ func _floor_prompt() -> String:
 	var item := player.carried_item
 	match item.get("kind", ""):
 		"server":
+			if item.get("broken", false):
+				return "Serveur EN PANNE — apporte-le à l'établi pour le réparer (clic gauche pour le poser en attendant)"
 			if item.has("os") or item.has("proxy"):
 				return "Clic gauche — Poser le serveur (E fonctionne aussi)"
+			return "Apporte ce serveur à l'établi (E) pour installer un OS"
 		"furniture":
 			return "Clic gauche — Poser l'armoire (E fonctionne aussi)"
 		"battery":
@@ -722,11 +738,11 @@ func _floor_prompt() -> String:
 
 
 func _update_prompt() -> void:
-	# Maintenance prioritaire : un serveur en panne proche affiche le coût.
+	# Serveur EN PANNE proche : prioritaire — on le prend pour l'établi.
 	if not player.is_carrying():
 		var bs := _nearest_broken_server(INTERACT_RANGE)
 		if bs != null:
-			hud.show_prompt("E — Maintenance (%s, %d $)" % [bs.item.get("name", "Serveur"), _repair_cost(bs)])
+			hud.show_prompt("E — Prendre le serveur en panne (%s)" % bs.item.get("name", "Serveur"))
 			return
 	var it := _nearest_interactable(INTERACT_RANGE)
 	if it != null:
@@ -750,11 +766,11 @@ func _try_interact() -> void:
 			or bench_ui.visible or storage_ui.visible or pause_menu.visible or travel_ui.visible \
 			or bills_ui.visible:
 		return
-	# Maintenance : un serveur EN PANNE proche passe avant tout (E répare).
+	# Serveur EN PANNE proche : on le prend en main pour l'établi.
 	if not player.is_carrying():
 		var bs := _nearest_broken_server(INTERACT_RANGE)
 		if bs != null:
-			_repair_server(bs)
+			_take_broken_server(bs)
 			return
 	var it := _nearest_interactable(INTERACT_RANGE)
 	if it != null:
@@ -786,6 +802,12 @@ func _try_interact() -> void:
 					_bowl_interact()
 		return
 	if player.is_carrying():
+		# Un serveur EN PANNE ne se pose pas « à l'établi » par E : on guide
+		# le joueur vers l'établi (la réparation s'y fait, ~2 min, slot occupé).
+		var carried := player.carried_item
+		if carried.get("kind", "") == "server" and carried.get("broken", false):
+			hud.toast("Va à l'établi pour réparer ce serveur en panne (prix du marché, ~2 min).")
+			return
 		_try_place_carried()
 
 
@@ -854,13 +876,16 @@ func _refresh_bowl_food() -> void:
 func _bench_interact() -> void:
 	if player.is_carrying():
 		var item := player.carried_item
-		if item.get("kind", "") == "server" and not item.has("os") and not item.has("proxy"):
+		# Un serveur EN PANNE s'ouvre aussi à l'établi : mode RÉPARATION
+		# (prix du marché, ~2 min, l'établi est occupé pendant ce temps).
+		if item.get("kind", "") == "server" and (item.get("broken", false) \
+				or (not item.has("os") and not item.has("proxy"))):
 			install_ui.open(item)
 			return
-		if item.get("kind", "") == "server" and (item.has("os") or item.has("proxy")):
+		if item.get("kind", "") == "server":
 			hud.toast("Ce serveur est déjà configuré (OS ou proxy) — éloigne-toi de l'établi puis appuie sur E pour le poser.")
 			return
-	hud.toast("Il faut un serveur (sans OS) à configurer.")
+	hud.toast("Il faut un serveur (sans OS ou en panne) à mettre sur l'établi.")
 
 
 func _open_rack_ui(rack: RackUnit) -> void:
@@ -1004,15 +1029,41 @@ func _bench_place() -> void:
 	if not player.is_carrying():
 		return
 	var item := player.carried_item
-	if item.get("kind", "") != "server" or item.has("os") or item.has("proxy"):
-		hud.toast("Il faut un serveur SANS OS à mettre sur l'établi.")
+	# Un serveur SANS OS ou EN PANNE peut être posé sur l'établi Pro. Un
+	# serveur déjà configuré (OS/proxy) n'est accepté QUE s'il est en panne
+	# (réparation) — parenthèses explicites pour la précédence and/or.
+	var has_os: bool = item.has("os") or item.has("proxy")
+	if item.get("kind", "") != "server" or (has_os and not bool(item.get("broken", false))):
+		hud.toast("Il faut un serveur SANS OS ou EN PANNE à mettre sur l'établi.")
 		return
 	if bench_unit.place(item):
 		player.carried_item = {}
 		bench_ui.refresh()
-		hud.toast("Serveur posé sur l'établi ! Choisis un OS ou un reverse proxy pour démarrer l'installation (4 s).")
+		if bool(item.get("broken", false)):
+			hud.toast("Serveur en panne posé sur l'établi ! Clique sur Réparer pour démarrer (~2 min, l'autre baie reste libre).")
+		else:
+			hud.toast("Serveur posé sur l'établi ! Choisis un OS ou un reverse proxy pour démarrer l'installation (4 s).")
 	else:
 		hud.toast("Les deux baies sont occupées !")
+
+
+func _bench_repair(bay: int) -> void:
+	## Bouton « Réparer » du panneau : on paie le prix du MARCHÉ puis la
+	## réparation démarre (~2 min) — la baie est occupée, l'autre reste libre.
+	if bench_unit == null:
+		return
+	var bay_dict: Dictionary = bench_unit.bays[bay]
+	var item: Dictionary = bay_dict.get("item", {})
+	if item.is_empty() or not bool(item.get("broken", false)):
+		return
+	var cost := ShopCatalog.repair_price(item)
+	if GameManager.cash < cost:
+		hud.toast("Réparation impossible : il faut %d $ !" % cost)
+		return
+	if bench_unit.start_repair(bay):
+		GameManager.cash -= cost
+		bench_ui.refresh()
+		hud.toast("Réparation en cours… (~2 min, baie %d occupée — l'autre reste libre)" % (bay + 1))
 
 
 func _bench_install(bay: int, os_id: String) -> void:
@@ -1290,6 +1341,8 @@ func world_placed() -> Dictionary:
 				"proxy": bay.get("proxy_id", ""),
 				"pending_os": bay.get("pending_os", ""),
 				"pending_proxy": bay.get("pending_proxy", ""),
+				"repairing": bay.get("repairing", false),
+				"repaired": bay.get("repaired", false),
 				"progress": bay.get("progress", 0.0),
 			})
 	if storage_unit != null:
@@ -2003,7 +2056,7 @@ func _on_tick() -> void:
 		if randf() < s.wear * BREAK_CHANCE:
 			s.broken = true
 			s.queue_redraw()
-			hud.toast("%s est tombé en PANNE ! Approche-toi et appuie sur E (maintenance %d $)." % [s.item.get("name", "Serveur"), _repair_cost(s)])
+			hud.toast("%s est tombé en PANNE ! Prends-le (E) et apporte-le à l'établi pour le réparer (%d $, ~2 min)." % [s.item.get("name", "Serveur"), ShopCatalog.repair_price(s.item)])
 	# Température : chaleur des serveurs − refroidissement des clims, plus une
 	# petite dissipation passive (la pièce finit toujours par refroidir un peu
 	# — évite le softlock à 400 °C sans clim). Jamais sous la température ambiante.
@@ -2086,6 +2139,12 @@ func _online_servers() -> int:
 
 func _on_os_installed(_os_id: String) -> void:
 	hud.toast("Logiciel installé ! Maintenant pose le serveur dans le garage (E).")
+
+
+func _on_server_repaired() -> void:
+	## Fin de la réparation à l'établi du garage : le serveur porté est de
+	## nouveau opérationnel — il ne reste qu'à le remonter (armoire ou sol).
+	hud.toast("Serveur réparé ! Remonte-le en armoire (E puis clic sur une baie) pour relancer les revenus.")
 
 
 # ------------------------------------------------------------------ Événements aléatoires (vie du garage)

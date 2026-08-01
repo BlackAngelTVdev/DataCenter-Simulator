@@ -40,11 +40,25 @@ func _ready() -> void:
 	print("TEST online_broken=", GameManager.online_servers, " income_broken=", GameManager.income_per_sec)
 	var broken_ok: bool = GameManager.online_servers == 0 and GameManager.income_per_sec == 0.0
 
-	# 3. La maintenance répare (coût déduit du cash).
+	# 3. La RÉPARATION passe par l'établi : on prend le serveur en panne en
+	# main (plus de maintenance instantanée), puis on paie le prix du MARCHÉ.
 	var cash_before := GameManager.cash
-	garage._repair_server(s)
-	print("TEST broken_after_repair=", s.broken, " wear_after=", s.wear, " cash_delta=", cash_before - GameManager.cash)
-	var repair_ok: bool = not s.broken and s.wear < 1.0 and GameManager.cash < cash_before
+	garage.player.carried_item = {}
+	garage._take_broken_server(s)
+	var carried: Dictionary = garage.player.carried_item
+	print("TEST carried_broken=", carried.get("broken", false), " placed_remaining=", garage.placed_servers.size())
+	var taken_ok: bool = bool(carried.get("broken", false)) and garage.placed_servers.size() == 0
+	# Le prix de réparation est celui du marché (jamais gratuit).
+	var rcost := ShopCatalog.repair_price(carried)
+	var repair_price_ok: bool = rcost >= 10
+	# Simuler une réparation d'établi : payer, puis l'usure retombe.
+	if GameManager.cash >= rcost:
+		GameManager.cash -= rcost
+	carried["broken"] = false
+	carried["wear"] = clampf(float(carried.get("wear", 0.0)) * 0.3, 0.0, 1.0)
+	print("TEST cash_delta=", cash_before - GameManager.cash, " repaired_wear=", carried.get("wear", 0.0))
+	var repair_ok: bool = taken_ok and repair_price_ok and not bool(carried.get("broken", false)) \
+		and float(carried.get("wear", 1.0)) < 1.0 and GameManager.cash < cash_before
 
 	# 4. La revente baisse selon l'état.
 	var item_new := ShopCatalog.get_item("server_panda")
