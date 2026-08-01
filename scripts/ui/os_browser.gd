@@ -538,6 +538,11 @@ func _neuf_picker(title: String, options: Array, key: String) -> Control:
 	opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	opt.custom_minimum_size = Vector2(0, 42)
 	opt.add_theme_font_size_override("font_size", 14)
+	# Style cohérent avec le reste de l'UI (le champ de l'URL, etc.) — pas de
+	# rendu par défaut de Godot dans le configurateur.
+	opt.add_theme_stylebox_override("normal", UITheme.field())
+	opt.add_theme_color_override("font_color", Color(0.85, 0.92, 1.0))
+	opt.add_theme_color_override("font_hover_color", Color(0.95, 0.98, 1.0))
 	for o in options:
 		opt.add_item("%s — %d $" % [o.get("name", "?"), int(o.get("price", 0))])
 	opt.selected = int(_neuf_sel.get(key, 0))
