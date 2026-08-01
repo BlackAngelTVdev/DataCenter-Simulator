@@ -133,10 +133,10 @@ var placed_decos: Array = []
 var occupied_cells := {}
 var crates: Array = []
 var tick := 0
-var bandwidth_warn_tick := 0
 var mail_cooldown := 0  # ticks restants avant le prochain e-mail aléatoire
 var _just_teleported := false
 var _overheat_announced := false  # toast de surchauffe déjà affiché (anti-spam)
+var _bandwidth_announced := false  # alerte « connexion saturée » déjà envoyée (anti-spam)
 
 # --- Événements aléatoires (vie du garage) ---
 var event_timer: Timer
@@ -2130,7 +2130,9 @@ func _on_tick() -> void:
 				s.clients = maxi(0, s.clients - maxi(1, int(float(s.clients) * 0.25)))
 				s.queue_redraw()
 
-	# Alertes de saturation
+	# Alertes de saturation : annoncées UNE SEULE fois quand un serveur devient
+	# saturé (pas de rappel toutes les secondes), puis réarmées quand il repasse
+	# sous sa capacité — un nouveau seuil peut re-annoncer plus tard.
 	for s in placed_servers:
 		if not s.configured():
 			continue
@@ -2138,8 +2140,8 @@ func _on_tick() -> void:
 			if not s.was_full_announced:
 				s.was_full_announced = true
 				hud.toast("%s est SATURÉ ! Installe un autre serveur." % s.item.get("name", "Serveur"))
-			else:
-				s.was_full_announced = false
+		else:
+			s.was_full_announced = false
 
 	# Revenus + chaleur + consommation électrique
 	var total_income := 0.0
@@ -2206,10 +2208,15 @@ func _on_tick() -> void:
 	GameManager.online_servers = _online_servers()
 	GameManager.total_watts = total_watts
 
-	# Alerte bande passante (la connexion ne suit plus : acheter un abo)
-	if has_free_slots and total_clients >= bw and tick - bandwidth_warn_tick > 5:
-		bandwidth_warn_tick = tick
+	# Alerte bande passante (la connexion ne suit plus : acheter un abo) :
+	# annoncée UNE SEULE fois quand la saturation commence, puis réarmée quand
+	# la connexion repasse sous la limite (elle peut re-annoncer plus tard).
+	var bw_saturated := has_free_slots and total_clients >= bw
+	if bw_saturated and not _bandwidth_announced:
+		_bandwidth_announced = true
 		hud.toast("Connexion saturée ! Achète un meilleur abonnement sur Tech'Occase.")
+	elif not bw_saturated and _bandwidth_announced:
+		_bandwidth_announced = false
 
 	# Succès : vérifie les conditions à chaque tick, toaste les nouveaux.
 	for a in Achievements.check_all():
