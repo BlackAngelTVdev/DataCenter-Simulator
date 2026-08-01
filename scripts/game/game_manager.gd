@@ -110,6 +110,12 @@ var mails_seen := {}
 ## le pool statique MailPool.MAILS et sont dédupliqués via mails_seen.
 var received_mails: Array = []
 
+## Centre de NOTIFICATIONS (cloche du HUD, en haut à gauche) : liste de
+## {text, read}. Les notifications vivent dans GameManager pour SURVIVRE aux
+## téléportations entre locaux (le HUD est recréé à chaque scène). Non
+## sauvegardées sur disque (transitoires de session).
+var notifications: Array = []
+
 ## Statistiques recalculées par le garage à chaque tick (affichage HUD).
 var total_clients := 0
 var income_per_sec := 0.0
@@ -168,6 +174,7 @@ func reset() -> void:
 	contracts = {}
 	mails_seen = {}
 	received_mails = []
+	notifications = []
 	total_clients = 0
 	income_per_sec = 0.0
 	heat_total = 0.0
@@ -212,6 +219,18 @@ func contract_income_per_sec() -> float:
 func accept_contract(cid: String, name: String, income_per_month: int) -> void:
 	## Signe un contrat (app Mail) : revenus garantis par mois.
 	contracts[cid] = {"name": name, "income_per_month": income_per_month}
+
+
+func add_notification(text: String) -> void:
+	## Ajoute une notification au centre de notifications (cloche du HUD).
+	## Déduplication : un message identique au précédent ne repart pas deux
+	## fois de suite (anti-spam des toasts répétés). La liste est plafonnée
+	## à 30 entrées (les plus anciennes sortent).
+	if not notifications.is_empty() and str(notifications.back().get("text", "")) == text:
+		return
+	notifications.append({"text": text, "read": false})
+	while notifications.size() > 30:
+		notifications.pop_front()
 
 
 func receive_random_mail() -> void:
