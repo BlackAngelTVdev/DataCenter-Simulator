@@ -3,7 +3,11 @@ extends Node2D
 ## Le chat du quartier : entre parfois dans le garage (événement aléatoire
 ## déclenché par garage_scene), se balade quelques secondes entre les racks,
 ## puis ressort par la porte de livraison. Pure ambiance — aucune mécanique,
-## aucun impact sur le gameplay. Rendu 100 % procédural (aucune texture).
+## aucun impact sur le gameplay.
+## Le CORPS est une IMAGE cuite (assets/images/baked/misc/cat.png) : plus
+## aucune forme dessinée en jeu. Le dessin procédural ne sert que au bake
+## tool (tools/bake_assets.gd) via bake_mode. La seule chose dynamique au
+## runtime, c'est le flip horizontal selon la direction de déplacement.
 
 const SPEED := 70.0
 const LIFETIME := 16.0  # secondes avant de ressortir (chat NON adopté)
@@ -12,21 +16,32 @@ const DOOR_POS := Vector2(672, 600)  # porte de livraison du garage
 ## Chat ADOPTÉ (nourriture versée dans la gamelle) : il reste dans le garage
 ## en permanence, se balade et fait des pauses — il ne ressort plus.
 var adopted := false
+var bake_mode := false  # rendu procédural complet pour le bake tool
 
 var _target := Vector2.ZERO
 var _life := 0.0
-var _time := 0.0
 var _leaving := false
 var _rest := 0.0
 var _facing := 1.0  # 1 = tête à droite, -1 = tête à gauche
 var _rng := RandomNumberGenerator.new()
+var _sprite: Sprite2D
 
 
 func _ready() -> void:
 	_rng.randomize()
-	position = DOOR_POS + Vector2(0, 40)
+	if not bake_mode:
+		position = DOOR_POS + Vector2(0, 40)
+		_build_sprite()
 	_pick_target()
-	queue_redraw()
+	if bake_mode:
+		queue_redraw()  # seule la capture (bake) a besoin du dessin procédural
+
+
+func _build_sprite() -> void:
+	## Image cuite du chat (aucune forme dessinée en jeu).
+	_sprite = Sprite2D.new()
+	_sprite.texture = BakedAssets.tex("cat")
+	add_child(_sprite)
 
 
 func _pick_target() -> void:
@@ -38,13 +53,13 @@ func _pick_target() -> void:
 
 
 func _process(delta: float) -> void:
-	_time += delta
+	if bake_mode:
+		return  # le bake capture une pose fixe (pas de déplacement)
 	# Le chat adopté ne part JAMAIS ; il fait même des pauses (il s'assoit).
 	if adopted:
 		_rest -= delta
 		if _rest > 0.0:
 			_life += delta
-			queue_redraw()
 			return
 	if not _leaving and not adopted and _life >= LIFETIME:
 		_leaving = true
@@ -55,30 +70,33 @@ func _process(delta: float) -> void:
 	if not _leaving and position.distance_to(_target) < 8.0:
 		if adopted and _rng.randf() < 0.30:
 			_rest = _rng.randf_range(1.5, 4.5)
-			queue_redraw()
 			return
 		_pick_target()
 	var dir := position.direction_to(_target)
 	position += dir * SPEED * delta
 	if absf(dir.x) > 0.1:
 		_facing = dir.x
+	# La texture est cuite « tête à droite » : on la retourne pour marcher
+	# vers la gauche — la seule transformation dynamique du chat.
+	if _sprite != null:
+		_sprite.flip_h = _facing < 0.0
 	_life += delta
-	queue_redraw()
 
 
-# ------------------------------------------------------------------ Rendu
+# ------------------------------------------------------------------ Rendu (bake uniquement)
 func _draw() -> void:
+	if not bake_mode:
+		return  # au runtime, seule la texture cuite est affichée (Sprite2D)
 	var body := Color(0.88, 0.55, 0.26)  # orange tabby
 	var dark := Color(0.6, 0.34, 0.13)
-	var fl := 1.0 if _facing >= 0.0 else -1.0
+	var fl := 1.0
 
 	# Ombre douce sous le chat
 	draw_circle(Vector2(2, 9), 13, Color(0, 0, 0, 0.18))
 
-	# Queue qui frétille (côté opposé à la tête)
-	var tail_phase := sin(_time * 7.0) * 4.0
-	var tail_base := Vector2(-8 * fl, 2)
-	var tail_tip := tail_base + Vector2(-10 * fl + tail_phase, 4)
+	# Queue relevée (pose fixe pour le bake — le runtime n'anime plus rien)
+	var tail_base := Vector2(-8, 2)
+	var tail_tip := Vector2(-16, -4)
 	draw_line(tail_base, tail_tip, body.darkened(0.15), 4.0)
 
 	# Corps (ellipse via échelle) + rayures du dos
@@ -94,8 +112,8 @@ func _draw() -> void:
 	draw_circle(Vector2(5, 7), 5, body.darkened(0.08))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
-	# Tête (du côté où le chat regarde) + oreilles
-	var hx := 11 * fl
+	# Tête (côté droit dans la texture — flip au runtime) + oreilles
+	var hx := 11
 	draw_circle(Vector2(hx, -2), 8, body.lightened(0.05))
 	var ear_l := PackedVector2Array([Vector2(hx - 4, -8), Vector2(hx - 8, -16), Vector2(hx + 1, -9)])
 	var ear_r := PackedVector2Array([Vector2(hx + 3, -8), Vector2(hx + 8, -15), Vector2(hx + 6, -6)])
@@ -103,4 +121,4 @@ func _draw() -> void:
 	draw_colored_polygon(ear_r, dark)
 	# Rayure sur la tête + œil
 	draw_line(Vector2(hx, -8), Vector2(hx, -2), dark, 2.0)
-	draw_circle(Vector2(hx + 3 * fl, -2), 1.6, Color(0.1, 0.12, 0.1))
+	draw_circle(Vector2(hx + 3, -2), 1.6, Color(0.1, 0.12, 0.1))
