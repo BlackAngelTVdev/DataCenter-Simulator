@@ -167,8 +167,10 @@ func _slot_card(idx: int) -> Control:
 		status.text = "Vide — dépose un objet porté ici."
 		status.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
 	elif it.get("kind", "") == "server":
-		if it.has("os"):
-			status.text = "OS installé : %s — prêt à brancher" % it.get("os_name", it.get("os", ""))
+		if it.has("os") or it.has("proxy"):
+			var conf_name: String = it.get("os_name", it.get("os", "")) if it.has("os") else it.get("proxy_name", it.get("proxy", ""))
+			var conf_type := "OS" if it.has("os") else "proxy"
+			status.text = "%s installé : %s — prêt à brancher" % [conf_type, conf_name]
 			status.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
 		else:
 			status.text = "Sans OS — à passer par l'établi d'abord."

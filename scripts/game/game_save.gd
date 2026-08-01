@@ -195,6 +195,10 @@ static func restore_item(raw: Variant) -> Dictionary:
 		if item.has("os"):
 			base["os"] = item["os"]
 			base["os_name"] = item.get("os_name", "")
+		# Reverse proxy installé : il suit le matériel (bande passante).
+		if item.has("proxy"):
+			base["proxy"] = item["proxy"]
+			base["proxy_name"] = item.get("proxy_name", "")
 		# L'état d'usure suit le matériel (revente selon l'état) : on le
 		# préserve à travers les sauvegardes.
 		if item.has("wear"):

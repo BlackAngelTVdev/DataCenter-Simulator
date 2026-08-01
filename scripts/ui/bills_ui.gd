@@ -155,6 +155,8 @@ func _refresh() -> void:
 	var fee := GameManager.abo_fee_per_sec()
 	_row("Mensualité fibre", "-%.2f $/h" % (fee * 3600.0), Color(1.0, 0.6, 0.5))
 	_row("Bande passante", "%d clients max" % bw)
+	if GameManager.proxy_boost > 0:
+		_row("Reverse proxies", "+%d clients" % GameManager.proxy_boost, Color(0.6, 0.9, 1.0))
 
 	# Bilan
 	_section("BILAN", Color(0.8, 0.9, 1.0))

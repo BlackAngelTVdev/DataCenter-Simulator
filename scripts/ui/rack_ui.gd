@@ -326,8 +326,13 @@ func _stats_line(server: ServerUnit) -> String:
 	var os_name := "SANS OS"
 	var tag := "—"
 	if server.configured():
-		os_name = str(OSList.get_os(server.os_id).get("name", server.os_id))
-		tag = OSList.hosting_label(server.os_id)
+		if server.is_proxy():
+			# Reverse proxy : pas de clients hébergés, mais de la bande passante.
+			os_name = str(ProxyList.get_proxy(server.proxy_id).get("name", server.proxy_id))
+			tag = "+%d clients" % server.bandwidth_boost()
+		else:
+			os_name = str(OSList.get_os(server.os_id).get("name", server.os_id))
+			tag = OSList.hosting_label(server.os_id)
 	return "%s · %s · Clients %d/%d · %d W · +%.1f chaleur" % [
 		os_name,
 		tag,

@@ -240,6 +240,7 @@ func _render_shop() -> void:
 	var abos: Array = []
 	var goodies: Array = []
 	var decos: Array = []
+	var proxies: Array = []
 	for item in ShopCatalog.shop_items():
 		# Les PARTENARIATS ont leur propre onglet (https://partenaires.bian/) :
 		# ils ne s'affichent pas dans la boutique matériel.
@@ -254,6 +255,7 @@ func _render_shop() -> void:
 			"abo": abos.append(item)
 			"catfood": goodies.append(item)
 			"decor": decos.append(item)
+			"proxy": proxies.append(item)
 
 	page_box.add_child(_section_title("Serveurs d'occasion"))
 	var hint := Label.new()
@@ -308,6 +310,16 @@ func _render_shop() -> void:
 	page_box.add_child(_section_title("Abonnements Internet"))
 	for item in abos:
 		page_box.add_child(_card(item))
+	if not proxies.is_empty():
+		page_box.add_child(_section_title("Logiciels réseau (reverse proxy)"))
+		var proxy_hint := Label.new()
+		proxy_hint.text = "Une licence à installer à l'établi SUR un serveur : la machine ne stocke plus de clients, mais ajoute de la bande passante au local — le moyen de DÉPASSER la limite de ton abonnement (400 clients) dans le Data Hall."
+		proxy_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		proxy_hint.add_theme_font_size_override("font_size", 12)
+		proxy_hint.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
+		page_box.add_child(proxy_hint)
+		for item in proxies:
+			page_box.add_child(_card(item))
 	if not goodies.is_empty():
 		page_box.add_child(_section_title("Vie du garage"))
 		var goodie_hint := Label.new()
@@ -848,6 +860,14 @@ func _server_monitor_card(s: ServerUnit) -> Control:
 	if not s.configured():
 		stat = "SANS OS"
 		color = Color(1, 1, 1, 0.5)
+	elif s.is_proxy():
+		# Reverse proxy : pas de clients, mais de la bande passante en plus.
+		if s.broken or GameManager.server_stopped(s):
+			stat = "PROXY À L'ARRÊT"
+			color = Color(1.0, 0.4, 0.35)
+		else:
+			stat = "PROXY EN LIGNE"
+			color = Color(0.4, 0.9, 1.0)
 	elif s.is_saturated():
 		stat = "SATURÉ"
 		color = Color(1.0, 0.4, 0.35)
@@ -867,15 +887,20 @@ func _server_monitor_card(s: ServerUnit) -> Control:
 	var m_garage := _garage()
 	if m_garage != null and m_garage._server_running(s):
 		income_txt = "+%.2f $/s" % s.income_per_sec()
-	clients_label.text = "%s · %d/%d clients · %s" % [
-		stat, s.clients, s.max_clients(), income_txt,
-	]
+	if s.is_proxy():
+		clients_label.text = "%s · +%d clients de bande passante · %s" % [
+			stat, s.bandwidth_boost(), income_txt,
+		]
+	else:
+		clients_label.text = "%s · %d/%d clients · %s" % [
+			stat, s.clients, s.max_clients(), income_txt,
+		]
 	clients_label.add_theme_font_size_override("font_size", 13)
 	clients_label.add_theme_color_override("font_color", color)
 	info.add_child(clients_label)
 
-	# Barre de charge
-	var ratio := float(s.clients) / float(s.max_clients()) if s.max_clients() > 0 else 0.0
+	# Barre de charge (vide pour un proxy : pas de clients à charger)
+	var ratio := 0.0 if s.is_proxy() else (float(s.clients) / float(s.max_clients()) if s.max_clients() > 0 else 0.0)
 	var bar := _bar(ratio, Color(1.0, 0.6, 0.2) if ratio < 1.0 else Color(1.0, 0.3, 0.25))
 	info.add_child(bar)
 	return card
@@ -1009,6 +1034,8 @@ func _specs(item: Dictionary) -> String:
 			]
 		"abo":
 			return "Jusqu'à %d clients en ligne simultanément" % int(item.get("clients", 0))
+		"proxy":
+			return "Licence à installer sur un serveur · +%d clients de bande passante au local" % int(item.get("clients", 0))
 		"partnership":
 			return "Achat -%d%% · revenus clients -%d%%" % [
 				int(item.get("buy_discount", 0.0) * 100),
@@ -1043,7 +1070,7 @@ func _refresh_cash() -> void:
 				elif GameManager.owns(str(item["id"])):
 					btn.disabled = true
 					btn.text = "DÉPASSÉ"
-			"upgrade", "local":
+			"upgrade", "local", "proxy":
 				if GameManager.owns(str(item["id"])):
 					btn.disabled = true
 					btn.text = "POSSÉDÉ"
@@ -1114,8 +1141,10 @@ func _stock_card(shelf: StorageUnit, idx: int) -> Control:
 	status.add_theme_font_size_override("font_size", 13)
 	info.add_child(status)
 	if str(it.get("kind", "")) == "server":
-		if it.has("os"):
-			status.text = "OS installé : %s — prêt à brancher" % it.get("os_name", it.get("os", ""))
+		if it.has("os") or it.has("proxy"):
+			var conf_name: String = it.get("os_name", it.get("os", "")) if it.has("os") else it.get("proxy_name", it.get("proxy", ""))
+			var conf_type := "OS" if it.has("os") else "proxy"
+			status.text = "%s installé : %s — prêt à brancher" % [conf_type, conf_name]
 			status.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
 		else:
 			status.text = "Sans OS"
@@ -1158,8 +1187,8 @@ func _sell_stock(idx: int) -> void:
 func _buy(item: Dictionary) -> void:
 	var price := ShopCatalog.buy_price(item)
 	var kind := str(item.get("kind", ""))
-	# Achats uniques : on ne rachète pas un abo / pare-feu / local / partenaire.
-	if kind in ["abo", "upgrade", "local", "partnership"] and GameManager.owns(str(item["id"])):
+	# Achats uniques : on ne rachète pas un abo / pare-feu / local / partenaire / proxy.
+	if kind in ["abo", "upgrade", "local", "partnership", "proxy"] and GameManager.owns(str(item["id"])):
 		_flash("Déjà possédé !")
 		return
 	# Abonnement : pas de downgrade (on ne reprend pas un abo moins bon).
@@ -1182,6 +1211,12 @@ func _buy(item: Dictionary) -> void:
 			if item["id"] == "upgrade_firewall":
 				GameManager.firewall_owned = true
 			_flash("Pare-feu installé : ton réseau est protégé contre les attaques !")
+		"proxy":
+			GameManager.mark_owned(str(item["id"]))
+			_flash("Licence %s acquise ! Installe-la à l'établi sur un serveur (reverse proxy : +%d clients de bande passante)." % [
+				item.get("name", ""),
+				int(item.get("clients", 0)),
+			])
 		"local":
 			GameManager.mark_owned(str(item["id"]))
 			if int(item.get("unlock_location", 0)) != 0:

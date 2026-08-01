@@ -605,7 +605,7 @@ func _nearest_interactable(max_dist: float) -> Node:
 			# vides pour récupérer) : sinon il volerait la priorité à la pose.
 			var carried := player.carried_item
 			if player.is_carrying() and not (carried.get("kind", "") == "server" \
-					and not carried.has("os")):
+					and not carried.has("os") and not carried.has("proxy")):
 				continue
 		else:
 			if it.kind == "delivery" and GameManager.deliveries.is_empty():
@@ -615,7 +615,7 @@ func _nearest_interactable(max_dist: float) -> Node:
 			if it.kind == "bench":
 				var carried := player.carried_item
 				if not (player.is_carrying() and carried.get("kind", "") == "server" \
-						and not carried.has("os")):
+						and not carried.has("os") and not carried.has("proxy")):
 					continue
 			# Le bureau ne doit pas voler la priorité sur la pose : si le joueur
 			# porte un objet plaçable, E pose — il ira voir les factures plus tard.
@@ -656,7 +656,7 @@ func _prompt_for(it: Node) -> String:
 			"bench":
 				if player.is_carrying():
 					var item := player.carried_item
-					if item.get("kind", "") == "server" and not item.has("os"):
+					if item.get("kind", "") == "server" and not item.has("os") and not item.has("proxy"):
 						return "E — Installer l'OS sur %s" % item.get("name", "")
 				return ""
 			"delivery":
@@ -678,7 +678,7 @@ func _floor_prompt() -> String:
 	var item := player.carried_item
 	match item.get("kind", ""):
 		"server":
-			if item.has("os"):
+			if item.has("os") or item.has("proxy"):
 				return "Clic gauche — Poser le serveur (E fonctionne aussi)"
 		"furniture":
 			return "Clic gauche — Poser l'armoire (E fonctionne aussi)"
@@ -828,11 +828,11 @@ func _refresh_bowl_food() -> void:
 func _bench_interact() -> void:
 	if player.is_carrying():
 		var item := player.carried_item
-		if item.get("kind", "") == "server" and not item.has("os"):
+		if item.get("kind", "") == "server" and not item.has("os") and not item.has("proxy"):
 			install_ui.open(item)
 			return
-		if item.get("kind", "") == "server" and item.has("os"):
-			hud.toast("Ce serveur a déjà un OS — éloigne-toi de l'établi puis appuie sur E pour le poser.")
+		if item.get("kind", "") == "server" and (item.has("os") or item.has("proxy")):
+			hud.toast("Ce serveur est déjà configuré (OS ou proxy) — éloigne-toi de l'établi puis appuie sur E pour le poser.")
 			return
 	hud.toast("Il faut un serveur (sans OS) à configurer.")
 
@@ -953,13 +953,13 @@ func _bench_place() -> void:
 	if not player.is_carrying():
 		return
 	var item := player.carried_item
-	if item.get("kind", "") != "server" or item.has("os"):
+	if item.get("kind", "") != "server" or item.has("os") or item.has("proxy"):
 		hud.toast("Il faut un serveur SANS OS à mettre sur l'établi.")
 		return
 	if bench_unit.place(item):
 		player.carried_item = {}
 		bench_ui.refresh()
-		hud.toast("Serveur posé sur l'établi ! Choisis un OS pour démarrer l'installation (4 s).")
+		hud.toast("Serveur posé sur l'établi ! Choisis un OS ou un reverse proxy pour démarrer l'installation (4 s).")
 	else:
 		hud.toast("Les deux baies sont occupées !")
 
@@ -969,7 +969,15 @@ func _bench_install(bay: int, os_id: String) -> void:
 		return
 	if bench_unit.start_install(bay, os_id):
 		bench_ui.refresh()
-		hud.toast("Installation de %s en cours… (baie %d, en parallèle)" % [OSList.get_os(os_id).get("name", os_id), bay + 1])
+		# Le nom vient de l'OS (data/os_list.gd) OU de la licence proxy
+		# (data/proxy_list.gd) selon ce qui s'installe.
+		var proxy := ProxyList.get_proxy(os_id)
+		var install_name: String = os_id
+		if not proxy.is_empty():
+			install_name = str(proxy.get("name", os_id))
+		else:
+			install_name = str(OSList.get_os(os_id).get("name", os_id))
+		hud.toast("Installation de %s en cours… (baie %d, en parallèle)" % [install_name, bay + 1])
 
 
 func _bench_pickup(bay: int) -> void:
@@ -1113,6 +1121,7 @@ func world_placed() -> Dictionary:
 		data["servers"].append({
 			"item": s.item.duplicate(true),
 			"os": s.os_id,
+			"proxy": s.proxy_id,
 			"clients": s.clients,
 			"was_full": s.was_full_announced,
 			"cell": [s.cell.x, s.cell.y],
@@ -1125,7 +1134,9 @@ func world_placed() -> Dictionary:
 			data["bench"].append({
 				"item": bay.get("item", {}).duplicate(true),
 				"os": bay.get("os_id", ""),
+				"proxy": bay.get("proxy_id", ""),
 				"pending_os": bay.get("pending_os", ""),
+				"pending_proxy": bay.get("pending_proxy", ""),
 				"progress": bay.get("progress", 0.0),
 			})
 	if storage_unit != null:
@@ -1189,6 +1200,7 @@ func restore_world(data: Dictionary) -> void:
 		else:
 			server = _spawn_server(GameSave.restore_item(s_dict.get("item", {})), _restore_cell(orig))
 		server.os_id = str(s_dict.get("os", server.os_id))
+		server.proxy_id = str(s_dict.get("proxy", server.proxy_id))
 		server.clients = int(s_dict.get("clients", 0))
 		server.was_full_announced = bool(s_dict.get("was_full", false))
 		server.wear = clampf(float(s_dict.get("wear", 0.0)), 0.0, 1.0)
@@ -1304,8 +1316,8 @@ func _place_at(cell: Vector2i) -> bool:
 	## On ne peut poser qu'à quelques cases du personnage (PLACE_RANGE).
 	var item := player.carried_item
 	var kind := str(item.get("kind", ""))
-	if kind == "server" and not item.has("os"):
-		hud.toast("Installe d'abord un OS à l'établi !")
+	if kind == "server" and not item.has("os") and not item.has("proxy"):
+		hud.toast("Installe d'abord un OS (ou un proxy) à l'établi !")
 		return true
 	if kind == "catfood":
 		hud.toast("Verse la nourriture dans la GAMELLE (près de l'étagère) — appuie sur E devant elle.")
@@ -1403,7 +1415,9 @@ func _carried_placable() -> bool:
 		return false
 	var kind := str(player.carried_item.get("kind", ""))
 	if kind == "server":
-		return player.carried_item.has("os")
+		# Configuré = un OS OU un reverse proxy est installé (les deux se
+		# posent ensuite au sol / dans une armoire).
+		return player.carried_item.has("os") or player.carried_item.has("proxy")
 	# La nourriture pour chat n'est PAS plaçable au sol : elle se verse dans
 	# la gamelle (interaction E) — pas de cases vertes de pose.
 	return kind == "furniture" or kind == "battery" or kind == "clim" or kind == "decor" or kind == "switch"
@@ -1498,6 +1512,7 @@ func _spawn_server(item: Dictionary, cell: Vector2i) -> ServerUnit:
 	var s := ServerUnit.new()
 	s.item = item.duplicate(true)
 	s.os_id = str(item.get("os", ""))
+	s.proxy_id = str(item.get("proxy", ""))
 	# L'usure suit le matériel : un serveur déranché puis reposé garde son état.
 	s.wear = clampf(float(item.get("wear", 0.0)), 0.0, 1.0)
 	s.broken = bool(item.get("broken", false))
@@ -1634,6 +1649,7 @@ func _spawn_server_mounted(item: Dictionary, rack: RackUnit) -> ServerUnit:
 	var s := ServerUnit.new()
 	s.item = item.duplicate(true)
 	s.os_id = str(item.get("os", ""))
+	s.proxy_id = str(item.get("proxy", ""))
 	# L'usure suit le matériel : un serveur déranché puis remonté garde son état.
 	s.wear = clampf(float(item.get("wear", 0.0)), 0.0, 1.0)
 	s.broken = bool(item.get("broken", false))
@@ -1685,12 +1701,27 @@ func _recompute_stats() -> void:
 	GameManager.overheated = GameManager.temperature >= GameManager.CRITICAL_TEMP
 	GameManager.online_servers = _online_servers()
 	GameManager.total_watts = total_watts
+	GameManager.proxy_boost = _proxy_boost()
+
+
+func _proxy_boost() -> int:
+	## Bande passante SUPPLÉMENTAIRE des reverse proxies EN LIGNE du local
+	## courant (les serveurs qui exécutent un proxy, pas arrêtés). C'est ce
+	## qui permet de dépasser la limite de l'abonnement dans le Data Hall.
+	var n := 0
+	for s in placed_servers:
+		if s.is_proxy() and _server_running(s):
+			n += s.bandwidth_boost()
+	return n
 
 
 # ------------------------------------------------------------------ Économie (tick 1s)
 func _on_tick() -> void:
 	tick += 1
 	_update_incidents()
+	# Bande passante des reverse proxies EN LIGNE du local : recalculée AVANT
+	# la limite (bw) pour que les clients remplissent jusqu'au total boosté.
+	GameManager.proxy_boost = _proxy_boost()
 	var bw := GameManager.bandwidth_limit()
 	var total_clients := 0
 	for s in placed_servers:
@@ -1869,7 +1900,7 @@ func _online_servers() -> int:
 
 
 func _on_os_installed(_os_id: String) -> void:
-	hud.toast("OS installé ! Maintenant pose le serveur dans le garage (E).")
+	hud.toast("Logiciel installé ! Maintenant pose le serveur dans le garage (E).")
 
 
 # ------------------------------------------------------------------ Événements aléatoires (vie du garage)
