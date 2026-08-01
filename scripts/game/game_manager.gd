@@ -122,6 +122,11 @@ var mails_seen := {}
 ## le pool statique MailPool.MAILS et sont dédupliqués via mails_seen.
 var received_mails: Array = []
 
+## E-mails SUPPRIMÉS dans l'app Mail (id -> true) : ils ne réapparaissent
+## plus (ni les e-mails de clients du pool statique, ni les e-mails
+## aléatoires reçus). Persisté dans la sauvegarde.
+var deleted_mails := {}
+
 ## Centre de NOTIFICATIONS (cloche du HUD, en haut à gauche) : liste de
 ## {text, read}. Les notifications vivent dans GameManager pour SURVIVRE aux
 ## téléportations entre locaux (le HUD est recréé à chaque scène). Non
@@ -187,6 +192,7 @@ func reset() -> void:
 	contracts = {}
 	mails_seen = {}
 	received_mails = []
+	deleted_mails = {}
 	notifications = []
 	total_clients = 0
 	income_per_sec = 0.0

@@ -41,6 +41,7 @@ static func persist(garage: GarageScene) -> bool:
 		"contracts": GameManager.contracts.duplicate(true),
 		"mails_seen": GameManager.mails_seen.keys(),
 		"received_mails": GameManager.received_mails.duplicate(true),
+		"deleted_mails": GameManager.deleted_mails.keys(),
 		"achievements": GameManager.achievements.keys(),
 		"enterprise_contracts": GameManager.enterprise_contracts.keys(),
 		"servers_placed_total": GameManager.servers_placed_total,
@@ -138,6 +139,12 @@ static func load_into(garage: GarageScene) -> void:
 		for rm in rand_mails_raw:
 			if typeof(rm) == TYPE_DICTIONARY:
 				GameManager.received_mails.append((rm as Dictionary).duplicate(true))
+	# E-mails SUPPRIMÉS : ils ne réapparaissent plus (ni pool clients, ni aléatoires).
+	GameManager.deleted_mails = {}
+	var del_raw: Variant = data.get("deleted_mails", [])
+	if typeof(del_raw) == TYPE_ARRAY:
+		for did in del_raw:
+			GameManager.deleted_mails[str(did)] = true
 	# Succès débloqués + contrats d'entreprise signés (listes d'ids).
 	GameManager.achievements = {}
 	var ach_raw: Variant = data.get("achievements", [])
