@@ -217,6 +217,12 @@ func _ready() -> void:
 		hud.toast("Partie chargée (emplacement %d) !" % (SaveManager.current_slot + 1))
 	else:
 		hud.toast("Bienvenue au garage ! Le PC est en haut à droite — approche-toi et appuie sur E.")
+	# Rétrocompat : une ancienne sauvegarde a des armoires SANS switch — les
+	# serveurs montés ne rapportent plus. On prévient une fois pour que le
+	# joueur comprenne la chute de revenus (le RackUI l'affiche aussi). Le HUD
+	# est déjà construit plus haut dans _ready : appel direct, pas de différé.
+	if _rack_without_switch_count() > 0:
+		_warn_missing_switch()
 
 
 func _route_or_load() -> void:
@@ -482,6 +488,7 @@ func _build_ui() -> void:
 	rack_ui.unrack_requested.connect(_unrack)
 	rack_ui.mount_requested.connect(_mount_into_rack)
 	rack_ui.battery_unrack_requested.connect(_remove_battery)
+	rack_ui.switch_unrack_requested.connect(_remove_switch)
 	add_child(rack_ui)
 
 	bench_ui = BenchUI.new()
@@ -677,6 +684,8 @@ func _floor_prompt() -> String:
 			return "Clic gauche — Poser l'armoire (E fonctionne aussi)"
 		"battery":
 			return "Clic gauche — Installer la batterie contre une armoire (E fonctionne aussi)"
+		"switch":
+			return "Clic gauche — Installer le switch contre une armoire (E fonctionne aussi)"
 		"clim":
 			return "Clic gauche — Poser le climatiseur (E fonctionne aussi)"
 		"decor":
@@ -784,6 +793,22 @@ func _bowl_interact() -> void:
 		hud.toast("La gamelle est vide. Achète de la nourriture pour chat sur Tech'Occase (5 $).")
 
 
+func _rack_without_switch_count() -> int:
+	var n := 0
+	for r in placed_racks:
+		if r.mounted.size() > 0 and not r.has_switch():
+			n += 1
+	return n
+
+
+func _warn_missing_switch() -> void:
+	## Toast unique après chargement/téléport : des armoires avec serveurs
+	## montés n'ont pas de switch réseau (rien n'est branché).
+	var n := _rack_without_switch_count()
+	if n > 0 and is_instance_valid(hud):
+		hud.toast("Alerte : %d armoire(s) n'ont pas de switch réseau — leurs serveurs ne rapportent rien. Achète un switch sur Tech'Occase." % n)
+
+
 func _refresh_bowl_food() -> void:
 	## Affiche une petite croquette dans la gamelle quand elle est remplie.
 	if bowl_interactable == null or not is_instance_valid(bowl_interactable):
@@ -866,7 +891,16 @@ func _mount_into_rack(server: ServerUnit) -> void:
 		server.cable = null
 	rack_ui.close()
 	_recompute_stats()
-	hud.toast("%s monté dans l'armoire !" % server.item.get("name", ""))
+	_mount_toast(server.item.get("name", ""), rack)
+
+
+func _mount_toast(server_name: String, rack: RackUnit) -> void:
+	## Toast de montage UNIQUE (montage auto par E ET bouton du panneau) : si
+	## l'armoire n'a pas de switch, prévenir que le serveur ne rapportera rien.
+	if rack.has_switch():
+		hud.toast("%s monté dans l'armoire !" % server_name)
+	else:
+		hud.toast("%s monté dans l'armoire, mais elle n'a PAS de switch réseau — il ne rapportera rien ! Achète un switch sur Tech'Occase." % server_name)
 
 
 func _remove_battery(rack: RackUnit) -> void:
@@ -882,6 +916,22 @@ func _remove_battery(rack: RackUnit) -> void:
 	rack_ui.close()
 	_recompute_stats()
 	hud.toast("Batterie retirée de l'armoire !")
+
+
+func _remove_switch(rack: RackUnit) -> void:
+	## « Retirer » le switch : il revient dans les mains du joueur (attention,
+	## les serveurs de l'armoire ne seront plus branchés au réseau).
+	if player.is_carrying():
+		hud.toast("Dépose d'abord ce que tu portes !")
+		return
+	if rack.switch_item.is_empty():
+		return
+	player.carried_item = rack.switch_item.duplicate(true)
+	rack.switch_item = {}
+	rack.queue_redraw()
+	rack_ui.close()
+	_recompute_stats()
+	hud.toast("Switch retiré ! Les serveurs de l'armoire ne sont plus branchés au réseau.")
 
 
 func _delivery_pickup() -> void:
@@ -1047,6 +1097,7 @@ func world_placed() -> Dictionary:
 			"item": rack.item.duplicate(true),
 			"cell": [rack.cell.x, rack.cell.y],
 			"battery": rack.battery.duplicate(true),
+			"switch": rack.switch_item.duplicate(true),
 		})
 	for c in placed_clims:
 		data["clims"].append({
@@ -1104,6 +1155,10 @@ func restore_world(data: Dictionary) -> void:
 		var bat: Variant = rack_dict.get("battery", {})
 		if typeof(bat) == TYPE_DICTIONARY and not (bat as Dictionary).is_empty():
 			rack.mount_battery(GameSave.restore_item(bat))
+		# Switch réseau de l'armoire (obligatoire pour brancher les serveurs).
+		var sw: Variant = rack_dict.get("switch", {})
+		if typeof(sw) == TYPE_DICTIONARY and not (sw as Dictionary).is_empty():
+			rack.mount_switch(GameSave.restore_item(sw))
 	# Puis les climatiseurs (ils refroidissent le local — jamais perdus)
 	for cd in data.get("clims", []):
 		if typeof(cd) != TYPE_DICTIONARY:
@@ -1201,8 +1256,8 @@ func _can_place(cell: Vector2i, kind: String) -> bool:
 		return false
 	if kind == "server" and not _loc_floor_allowed():
 		return false  # Data Hall : pas de pose au sol, uniquement en armoire
-	if kind == "battery":
-		return false  # batterie : uniquement sur/contre une armoire
+	if kind == "battery" or kind == "switch":
+		return false  # batterie / switch : uniquement contre une armoire
 	return true
 
 
@@ -1255,7 +1310,7 @@ func _place_at(cell: Vector2i) -> bool:
 	if kind == "catfood":
 		hud.toast("Verse la nourriture dans la GAMELLE (près de l'étagère) — appuie sur E devant elle.")
 		return true
-	if kind != "server" and kind != "furniture" and kind != "battery" and kind != "clim" and kind != "decor":
+	if kind != "server" and kind != "furniture" and kind != "battery" and kind != "clim" and kind != "decor" and kind != "switch":
 		return false
 	# Limite d'armoires (propre à chaque local).
 	if kind == "furniture" and placed_racks.size() >= _loc_rack_limit():
@@ -1280,7 +1335,7 @@ func _place_at(cell: Vector2i) -> bool:
 			# Succès « Premier serveur » : un serveur monté compte aussi.
 			GameManager.servers_placed_total += 1
 			player.carried_item = {}
-			hud.toast("%s monté dans l'armoire !" % item.get("name", ""))
+			_mount_toast(item.get("name", ""), adj_rack)
 			return true
 		# Pose directe sur une armoire = montage, PAS une pose au sol.
 		if not _cell_has_free_rack(cell):
@@ -1302,6 +1357,20 @@ func _place_at(cell: Vector2i) -> bool:
 		rack.mount_battery(item)
 		player.carried_item = {}
 		hud.toast("%s installée dans l'armoire ! (-30%% de chaleur)" % item.get("name", "Batterie"))
+		return true
+
+	# Switch réseau : se monte dans le slot switch d'une armoire (adjacente ou
+	# directe). SANS switch, les serveurs montés ne rapportent RIEN.
+	if kind == "switch":
+		var rack := _adjacent_rack_switch(cell)
+		if rack == null:
+			rack = _rack_switch_at(cell)
+		if rack == null:
+			hud.toast("Il faut une armoire SANS switch — pose le switch CONTRE l'armoire.")
+			return true
+		rack.mount_switch(item)
+		player.carried_item = {}
+		hud.toast("%s installé : les serveurs de l'armoire sont branchés au réseau !" % item.get("name", "Switch"))
 		return true
 
 	if not _can_place(cell, kind):
@@ -1337,7 +1406,7 @@ func _carried_placable() -> bool:
 		return player.carried_item.has("os")
 	# La nourriture pour chat n'est PAS plaçable au sol : elle se verse dans
 	# la gamelle (interaction E) — pas de cases vertes de pose.
-	return kind == "furniture" or kind == "battery" or kind == "clim" or kind == "decor"
+	return kind == "furniture" or kind == "battery" or kind == "clim" or kind == "decor" or kind == "switch"
 
 
 func _cell_valid_for(item: Dictionary, cell: Vector2i) -> bool:
@@ -1357,6 +1426,8 @@ func _cell_valid_for(item: Dictionary, cell: Vector2i) -> bool:
 		return _can_place(cell, kind)
 	if kind == "battery":
 		return _adjacent_rack_battery(cell) != null or _rack_battery_at(cell) != null
+	if kind == "switch":
+		return _adjacent_rack_switch(cell) != null or _rack_switch_at(cell) != null
 	if kind == "server":
 		# Montage auto : case adjacente à une armoire avec un slot libre
 		if _adjacent_rack(cell) != null:
@@ -1529,11 +1600,32 @@ func _adjacent_rack_battery(cell: Vector2i) -> RackUnit:
 	return null
 
 
+func _adjacent_rack_switch(cell: Vector2i) -> RackUnit:
+	## Armoire SANS switch ADJACENTE à la case : on y installe le switch.
+	var neighbors: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	for off in neighbors:
+		var key := cell + off
+		if occupied_cells.has(key) and occupied_cells[key] is RackUnit:
+			var rack: RackUnit = occupied_cells[key]
+			if not rack.has_switch():
+				return rack
+	return null
+
+
 func _rack_battery_at(cell: Vector2i) -> RackUnit:
 	var key := Vector2i(cell.x, cell.y)
 	if occupied_cells.has(key) and occupied_cells[key] is RackUnit:
 		var rack: RackUnit = occupied_cells[key]
 		if rack.has_free_battery_slot():
+			return rack
+	return null
+
+
+func _rack_switch_at(cell: Vector2i) -> RackUnit:
+	var key := Vector2i(cell.x, cell.y)
+	if occupied_cells.has(key) and occupied_cells[key] is RackUnit:
+		var rack: RackUnit = occupied_cells[key]
+		if not rack.has_switch():
 			return rack
 	return null
 

@@ -232,6 +232,7 @@ func _render_shop() -> void:
 
 	var servers: Array = []
 	var furniture: Array = []
+	var switches: Array = []
 	var batteries: Array = []
 	var clims: Array = []
 	var locals: Array = []
@@ -245,6 +246,7 @@ func _render_shop() -> void:
 		match item.get("kind", ""):
 			"server": servers.append(item)
 			"furniture": furniture.append(item)
+			"switch": switches.append(item)
 			"battery": batteries.append(item)
 			"clim": clims.append(item)
 			"local": locals.append(item)
@@ -264,6 +266,15 @@ func _render_shop() -> void:
 		page_box.add_child(_card(item))
 	page_box.add_child(_section_title("Mobilier & sécurité"))
 	for item in furniture:
+		page_box.add_child(_card(item))
+	page_box.add_child(_section_title("Switches réseau"))
+	var switch_hint := Label.new()
+	switch_hint.text = "Obligatoire dans CHAQUE armoire : sans switch, les serveurs montés ne sont pas branchés au réseau (aucun revenu !). Le switch se pose CONTRE une armoire."
+	switch_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	switch_hint.add_theme_font_size_override("font_size", 12)
+	switch_hint.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
+	page_box.add_child(switch_hint)
+	for item in switches:
 		page_box.add_child(_card(item))
 	for item in upgrades:
 		page_box.add_child(_card(item))
@@ -972,6 +983,11 @@ func _specs(item: Dictionary) -> String:
 			return extra + "À poser · double la capacité des serveurs"
 		"battery":
 			return "Slot batterie d'armoire Pro · -30% de chaleur pour ses serveurs"
+		"switch":
+			var q := float(item.get("quality", 0.0))
+			if q > 0.0:
+				return "À monter contre une armoire · -%d%% de chaleur pour ses serveurs" % int(q * 100)
+			return "À monter contre une armoire · branche les serveurs au réseau"
 		"clim":
 			return "Refroidit : -%.2f °C/s · consomme %d W · à poser au sol" % [
 				float(item.get("cooling", 0.0)) * GameManager.HEAT_PER_SEC,  # unités de chaleur : °C/s
@@ -1158,7 +1174,7 @@ func _buy(item: Dictionary) -> void:
 		return
 	GameManager.cash -= price
 	match kind:
-		"server", "furniture", "battery", "clim", "catfood", "decor":
+		"server", "furniture", "switch", "battery", "clim", "catfood", "decor":
 			GameManager.deliveries.append(item.duplicate(true))
 			_flash("Commande passée ! Livraison à l'extérieur du garage (porte du bas).")
 		"upgrade":

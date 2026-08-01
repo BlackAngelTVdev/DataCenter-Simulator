@@ -205,13 +205,16 @@ func bandwidth_limit() -> int:
 
 
 func server_stopped(s: ServerUnit) -> bool:
-	## Source unique de la règle « serveur arrêté par un incident » :
-	## surchauffe (tous éteints), DDoS sans pare-feu (tous hors ligne) ou
-	## coupure de courant (seuls les serveurs montés sur armoire avec onduleur
-	## UPS survivent). Utilisée par le garage (revenus), l'affichage des
-	## serveurs et le Monitor — un seul endroit à modifier si la règle évolue.
+	## Source unique de la règle « serveur arrêté » : surchauffe (tous éteints),
+	## DDoS sans pare-feu (tous hors ligne), coupure de courant (seuls les
+	## serveurs montés sur armoire avec onduleur UPS survivent) OU serveur
+	## monté dans une armoire SANS SWITCH réseau (rien n'est branché : aucun
+	## revenu). Utilisée par le garage (revenus), l'affichage des serveurs et
+	## le Monitor — un seul endroit à modifier si la règle évolue.
 	if not s.configured():
 		return false
+	if s.rack != null and not s.rack.has_switch():
+		return true
 	if overheated:
 		return true
 	if ddos_active and not firewall_owned:

@@ -8,6 +8,7 @@ extends CanvasLayer
 signal unrack_requested(server: ServerUnit)
 signal mount_requested(server: ServerUnit)
 signal battery_unrack_requested(rack: RackUnit)
+signal switch_unrack_requested(rack: RackUnit)
 
 var root_control: Control
 var rack: RackUnit
@@ -106,9 +107,8 @@ func _refresh() -> void:
 		empty.add_theme_font_size_override("font_size", 14)
 		empty.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
 		list_box.add_child(empty)
-	else:
-		for s in rack.mounted:
-			list_box.add_child(_server_card(s))
+	else:	for s in rack.mounted:
+		list_box.add_child(_server_card(s))
 	# Serveurs posés au sol, prêts à être montés
 	if not floor_servers.is_empty():
 		var sep := Label.new()
@@ -119,6 +119,7 @@ func _refresh() -> void:
 		list_box.add_child(sep)
 		for s in floor_servers:
 			list_box.add_child(_floor_card(s))
+	_switch_section()
 	_battery_section()
 
 
@@ -180,6 +181,80 @@ func _card(server: ServerUnit, action_text: String, action_color: Color, enabled
 func _server_card(server: ServerUnit) -> Control:
 	return _card(server, "Déranquer", Color(0.5, 0.2, 0.2), true,
 			func() -> void: unrack_requested.emit(server))
+
+
+func _switch_section() -> void:
+	## Slot SWITCH RÉSEAU de l'armoire : OBLIGATOIRE pour brancher les
+	## serveurs. Sans switch, ils ne rapportent RIEN. Statut + retirer.
+	var sep := Label.new()
+	sep.text = "── Switch réseau ──"
+	sep.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sep.add_theme_font_size_override("font_size", 14)
+	sep.add_theme_color_override("font_color", Color(0.65, 0.85, 1.0))
+	list_box.add_child(sep)
+	if rack.has_switch():
+		var card := PanelContainer.new()
+		card.add_theme_stylebox_override("panel", UITheme.card(12))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		card.add_child(row)
+		var icon := TextureRect.new()
+		icon.texture = BakedAssets.item_tex(rack.switch_item)
+		icon.modulate = rack.switch_item.get("color", Color(0.3, 0.5, 0.8))
+		icon.custom_minimum_size = Vector2(40, 40)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(icon)
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info.add_theme_constant_override("separation", 2)
+		row.add_child(info)
+		var name_label := Label.new()
+		name_label.text = str(rack.switch_item.get("name", "Switch"))
+		name_label.add_theme_font_size_override("font_size", 15)
+		info.add_child(name_label)
+		var stats := Label.new()
+		var bonus := rack.switch_heat_bonus()
+		stats.text = "Réseau actif : les serveurs de l'armoire rapportent." if bonus == 0.0 \
+			else "Réseau actif (-%d%% de chaleur pour les serveurs de l'armoire)." % int(bonus * 100)
+		stats.add_theme_font_size_override("font_size", 12)
+		stats.add_theme_color_override("font_color", Color(0.6, 0.95, 1.0))
+		info.add_child(stats)
+		var btn := Button.new()
+		btn.text = "Retirer"
+		btn.custom_minimum_size = Vector2(120, 38)
+		btn.add_theme_font_size_override("font_size", 13)
+		btn.add_theme_stylebox_override("normal", UITheme.button_normal(Color(0.5, 0.2, 0.2)))
+		btn.add_theme_stylebox_override("hover", UITheme.button_hover(Color(0.65, 0.25, 0.25)))
+		btn.add_theme_stylebox_override("pressed", UITheme.button_pressed())
+		btn.add_theme_stylebox_override("focus", UITheme.button_focus())
+		btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		btn.pressed.connect(func() -> void: switch_unrack_requested.emit(rack))
+		row.add_child(btn)
+		list_box.add_child(card)
+	else:
+		var warn := PanelContainer.new()
+		warn.add_theme_stylebox_override("panel", UITheme.card(12))
+		var wrow := HBoxContainer.new()
+		wrow.add_theme_constant_override("separation", 12)
+		warn.add_child(wrow)
+		var wicon := TextureRect.new()
+		wicon.texture = BakedAssets.tex("block")
+		wicon.modulate = Color(0.9, 0.3, 0.3)
+		wicon.custom_minimum_size = Vector2(40, 40)
+		wicon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		wicon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		wicon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		wrow.add_child(wicon)
+		var wtext := Label.new()
+		wtext.text = "AUCUN SWITCH : les serveurs montés ne sont pas branchés au réseau et ne rapportent RIEN. Achète un switch (Tech'Occase) et pose-le CONTRE cette armoire."
+		wtext.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		wtext.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		wtext.add_theme_font_size_override("font_size", 13)
+		wtext.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
+		wrow.add_child(wtext)
+		list_box.add_child(warn)
 
 
 func _battery_section() -> void:
