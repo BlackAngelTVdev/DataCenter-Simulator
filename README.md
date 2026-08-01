@@ -43,7 +43,7 @@
    ```
    Appuyez sur F5 (ou cliquez sur Play)
    ```
-   Les textures sont cuites dans `assets/images/baked/` — inutile de les régénérer. Si vous modifiez le bake tool : `Godot.exe --path . res://tools/bake_assets.tscn`.
+   Les textures sont pré-cuites dans `assets/images/baked/` — aucun outil de régénération nécessaire.
 
 ## Utilisation
 Au lancement, vous arrivez sur le menu principal (Reprendre, Mes Sauvegardes, Options, Quitter).
