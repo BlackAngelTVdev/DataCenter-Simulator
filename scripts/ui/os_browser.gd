@@ -17,6 +17,7 @@ const SITE_URL := "https://tech-occase.bian/"
 const MONITOR_URL := "https://monitor.bian/"
 const PARTNERSHIP_URL := "https://partenaires.bian/"
 const CONTRACTS_URL := "https://contrats.bian/"
+const NEUF_URL := "https://neuf.bian/"  # configurateur de serveurs neufs (Data Hall)
 
 var page_box: VBoxContainer
 var cash_label: Label
@@ -215,6 +216,11 @@ func _render_page() -> void:
 		# de « partenaires » : l'onglet retombait sur le shop).
 		current_page = "partnership"
 		_render_partnerships()
+	elif url.contains("neuf"):
+		# ATTENTION : « neuf » n'est PAS une sous-chaîne des autres URLs —
+		# l'ordre (neuf APRÈS contrat/partenaire) évite tout chevauchement.
+		current_page = "neuf"
+		_render_neuf_shop()
 	else:
 		current_page = "shop"
 		_render_shop()
@@ -425,6 +431,7 @@ func _build_site_links() -> Control:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	for link in [
 		["Tech'Occase", SITE_URL],
+		["Neuf", NEUF_URL],
 		["Partenaires", PARTNERSHIP_URL],
 		["Contrats", CONTRACTS_URL],
 		["Monitor", MONITOR_URL],
@@ -441,6 +448,175 @@ func _section_title(text: String) -> Label:
 	l.add_theme_font_size_override("font_size", 18)
 	l.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
 	return l
+
+
+# ------------------------------------------------------------------ Site « Neuf » (configurateur, Data Hall)
+# Sélections courantes du configurateur (index dans ServerFactory.CHASSIS/…).
+var _neuf_sel := {"chassis": 0, "cpu": 0, "ram": 0, "disk": 0}
+var _neuf_specs_label: Label
+var _neuf_buy_btn: Button
+
+
+func _render_neuf_shop() -> void:
+	## Configurateur de serveurs NEUFS : on choisit châssis / CPU / RAM /
+	## disques, les specs (clients max, revenus, watts, chaleur) et le prix
+	## découlent de la config. L'achat livre un KIT à assembler sur la table
+	## d'assemblage du Data Hall. Réservé au Local 2 (le garage n'a pas de
+	## configurateur — c'est le « neuf pro » du Data Hall).
+	for child in page_box.get_children():
+		child.queue_free()
+	buy_entries.clear()
+	page_box.add_child(_build_neuf_banner())
+	page_box.add_child(_build_site_links())
+
+	if GameManager.location != 1:
+		# Site visible depuis TOUT navigateur, mais réservé au Data Hall : le
+		# garage affiche un verrou (achète le Local 2 sur Tech'Occase).
+		page_box.add_child(_section_title("Accès réservé"))
+		var locked := Label.new()
+		locked.text = "Le configurateur de serveurs neufs est réservé au DATA HALL (Local 2).\nAchète le Local 2 sur Tech'Occase (PC du garage) pour y accéder."
+		locked.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		locked.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		locked.add_theme_font_size_override("font_size", 14)
+		locked.add_theme_color_override("font_color", Color(1.0, 0.75, 0.4))
+		page_box.add_child(locked)
+		_refresh_cash()
+		return
+
+	page_box.add_child(_section_title("Configure ton serveur"))
+	var hint := Label.new()
+	hint.text = "Choisis chaque pièce : les specs et le prix s'ajustent en direct. L'achat livre un KIT à assembler sur la TABLE D'ASSEMBLAGE (à côté de l'établi) avant d'installer un OS. Plus la config est grosse, plus le serveur héberge de clients."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.add_theme_font_size_override("font_size", 12)
+	hint.add_theme_color_override("font_color", Color(0.75, 0.9, 1.0))
+	page_box.add_child(hint)
+
+	page_box.add_child(_neuf_picker("Châssis", ServerFactory.CHASSIS, "chassis"))
+	page_box.add_child(_neuf_picker("Processeur", ServerFactory.CPUS, "cpu"))
+	page_box.add_child(_neuf_picker("Mémoire RAM", ServerFactory.RAMS, "ram"))
+	page_box.add_child(_neuf_picker("Stockage", ServerFactory.DISKS, "disk"))
+
+	_neuf_specs_label = Label.new()
+	_neuf_specs_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_neuf_specs_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_neuf_specs_label.add_theme_font_size_override("font_size", 15)
+	_neuf_specs_label.add_theme_color_override("font_color", Color(0.6, 1.0, 0.7))
+	page_box.add_child(_neuf_specs_label)
+
+	_neuf_buy_btn = Button.new()
+	_neuf_buy_btn.custom_minimum_size = Vector2(360, 54)
+	_neuf_buy_btn.add_theme_font_size_override("font_size", 17)
+	_neuf_buy_btn.add_theme_stylebox_override("normal", UITheme.button_normal(Color(0.15, 0.45, 0.25)))
+	_neuf_buy_btn.add_theme_stylebox_override("hover", UITheme.button_hover(Color(0.2, 0.6, 0.32)))
+	_neuf_buy_btn.add_theme_stylebox_override("pressed", UITheme.button_pressed())
+	_neuf_buy_btn.add_theme_stylebox_override("focus", UITheme.button_focus())
+	_neuf_buy_btn.add_theme_stylebox_override("disabled", UITheme.button_normal(Color(0.12, 0.14, 0.2)))
+	_neuf_buy_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_neuf_buy_btn.pressed.connect(_buy_neuf_kit)
+	page_box.add_child(_neuf_buy_btn)
+
+	_refresh_neuf_specs()
+	_refresh_cash()
+
+
+func _neuf_picker(title: String, options: Array, key: String) -> Control:
+	## Une ligne de sélection : libellé + liste déroulante des pièces.
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", UITheme.card(10))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	card.add_child(row)
+
+	var lbl := Label.new()
+	lbl.text = title
+	lbl.custom_minimum_size = Vector2(110, 0)
+	lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	lbl.add_theme_font_size_override("font_size", 15)
+	row.add_child(lbl)
+
+	var opt := OptionButton.new()
+	opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt.custom_minimum_size = Vector2(0, 42)
+	opt.add_theme_font_size_override("font_size", 14)
+	for o in options:
+		opt.add_item("%s — %d $" % [o.get("name", "?"), int(o.get("price", 0))])
+	opt.selected = int(_neuf_sel.get(key, 0))
+	opt.item_selected.connect(_on_neuf_selected.bind(key))
+	row.add_child(opt)
+	return card
+
+
+func _on_neuf_selected(idx: int, key: String) -> void:
+	_neuf_sel[key] = idx
+	_refresh_neuf_specs()
+
+
+func _refresh_neuf_specs() -> void:
+	## Recalcule specs + prix selon la sélection et met à jour l'affichage.
+	var chassis: Dictionary = ServerFactory.CHASSIS[int(_neuf_sel.get("chassis", 0))]
+	var cpu: Dictionary = ServerFactory.CPUS[int(_neuf_sel.get("cpu", 0))]
+	var ram: Dictionary = ServerFactory.RAMS[int(_neuf_sel.get("ram", 0))]
+	var disk: Dictionary = ServerFactory.DISKS[int(_neuf_sel.get("disk", 0))]
+	var spec := ServerFactory.compute(chassis, cpu, ram, disk)
+	if is_instance_valid(_neuf_specs_label):
+		_neuf_specs_label.text = "Résultat : %d clients max · %s $/s par client · %d W · chauffe %.1f" % [
+			int(spec["slots"]), spec["income"], int(spec["watts"]), float(spec["heat"]),
+		]
+	if is_instance_valid(_neuf_buy_btn):
+		_neuf_buy_btn.text = "Commander le kit (%d $)" % int(spec["price"])
+		_neuf_buy_btn.disabled = GameManager.cash < int(spec["price"])
+
+
+func _buy_neuf_kit() -> void:
+	## Achat : un KIT arrive à la livraison du Data Hall, à assembler sur la
+	## table d'assemblage (le colis est taggé pour CE local, comme tout achat).
+	var chassis: Dictionary = ServerFactory.CHASSIS[int(_neuf_sel.get("chassis", 0))]
+	var cpu: Dictionary = ServerFactory.CPUS[int(_neuf_sel.get("cpu", 0))]
+	var ram: Dictionary = ServerFactory.RAMS[int(_neuf_sel.get("ram", 0))]
+	var disk: Dictionary = ServerFactory.DISKS[int(_neuf_sel.get("disk", 0))]
+	var spec := ServerFactory.compute(chassis, cpu, ram, disk)
+	var price := int(spec["price"])
+	if GameManager.cash < price:
+		_flash("Pas assez d'argent ! Il faut %d $." % price)
+		return
+	GameManager.cash -= price
+	var kit := ServerFactory.build_kit(chassis, cpu, ram, disk)
+	kit["loc"] = GameManager.location
+	GameManager.deliveries.append(kit)
+	purchased.emit()
+	_refresh_neuf_specs()
+	_refresh_cash()
+	_flash("Kit commandé ! Livraison au Data Hall (bas de la salle) — assemble-le sur la table d'assemblage.")
+
+
+func _build_neuf_banner() -> Control:
+	var banner := PanelContainer.new()
+	banner.add_theme_stylebox_override("panel", UITheme.tinted(Color(0.1, 0.32, 0.35), 14.0, 10.0))
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	banner.add_child(vb)
+
+	var site_name := Label.new()
+	site_name.text = "ServeurLab Neuf"
+	site_name.add_theme_font_size_override("font_size", 26)
+	site_name.add_theme_color_override("font_color", Color(0.5, 1.0, 0.9))
+	vb.add_child(site_name)
+	var slogan := Label.new()
+	slogan.text = "Du matériel NEUF, configuré sur mesure : tu choisis les pièces, on livre le kit."
+	slogan.add_theme_font_size_override("font_size", 14)
+	vb.add_child(slogan)
+
+	cash_label = Label.new()
+	cash_label.add_theme_font_size_override("font_size", 16)
+	cash_label.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
+	vb.add_child(cash_label)
+
+	flash_label = Label.new()
+	flash_label.add_theme_font_size_override("font_size", 14)
+	flash_label.add_theme_color_override("font_color", Color(0.6, 1.0, 0.7))
+	flash_label.visible = false
+	vb.add_child(flash_label)
+	return banner
 
 
 # ------------------------------------------------------------------ Partenariats (onglet dédié)
