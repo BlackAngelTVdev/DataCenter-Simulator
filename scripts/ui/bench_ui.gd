@@ -6,6 +6,7 @@ extends CanvasLayer
 
 signal place_requested
 signal install_requested(bay: int, os_id: String)
+signal repair_requested(bay: int)  # réparer le serveur en panne posé dans la baie
 signal pickup_requested(bay: int)
 
 var root_control: Control
@@ -39,12 +40,12 @@ func _process(_delta: float) -> void:
 		var bar: ProgressBar = entry["bar"]
 		var bay: Dictionary = bench.bays[int(entry["bay"])]
 		bar.value = bay.get("progress", 0.0) * 100.0
-	# Un serveur vient de finir ? On rafraîchit les boutons.
+	# Un serveur vient de finir (installé ou réparé) ? On rafraîchit les boutons.
 	var done := 0
 	for bay in bench.bays:
 		if not bay.get("item", {}).is_empty() and (not bay.get("os_id", "").is_empty() \
-				or not bay.get("proxy_id", "").is_empty()) \
-				and not bay.get("installing", false):
+				or not bay.get("proxy_id", "").is_empty() or bay.get("repaired", false)) \
+				and not bay.get("installing", false) and not bay.get("repairing", false):
 			done += 1
 	if done != _last_done:
 		_last_done = done
@@ -105,7 +106,7 @@ func _build() -> void:
 	vb.add_child(title_label)
 
 	var hint := Label.new()
-	hint.text = "Les 2 baies installent EN PARALLÈLE (4 s chacune — machines pro). Pose un serveur, choisis un OS : l'installation continue même si tu fermes le panneau."
+	hint.text = "Les 2 baies travaillent EN PARALLÈLE : installer un OS (4 s) ou RÉPARER un serveur en panne (~2 min). L'autre baie reste libre pendant ce temps."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.add_theme_font_size_override("font_size", 13)
@@ -137,7 +138,7 @@ func _refresh() -> void:
 	for i in range(BenchUnit.BAYS):
 		list_box.add_child(_bay_card(i))
 
-	var place := UIHelpers.make_button("Placer le serveur porté (sans OS)", false, Vector2(0, 46))
+	var place := UIHelpers.make_button("Placer le serveur porté (sans OS ou en panne)", false, Vector2(0, 46))
 	place.disabled = bench.free_bay() < 0
 	place.pressed.connect(func() -> void: place_requested.emit())
 	list_box.add_child(place)
@@ -182,8 +183,17 @@ func _bay_card(idx: int) -> Control:
 	info.add_child(status)
 
 	if empty:
-		status.text = "En attente d'un serveur (sans OS)."
+		status.text = "En attente d'un serveur (sans OS ou en panne)."
 		status.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
+	elif bay.get("repairing", false):
+		status.text = "Réparation en cours… (~2 min, l'autre baie reste libre)"
+		status.add_theme_color_override("font_color", Color(1.0, 0.75, 0.4))
+	elif bay.get("repaired", false):
+		status.text = "Réparé — prêt à être récupéré"
+		status.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
+	elif bool(bay.get("item", {}).get("broken", false)):
+		status.text = "EN PANNE — réparer au prix du marché (2 min) :"
+		status.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
 	elif not bay.get("os_id", "").is_empty():
 		status.text = "%s installé — prêt à être récupéré" % OSList.get_os(bay["os_id"]).get("name", bay["os_id"])
 		status.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
@@ -202,8 +212,31 @@ func _bay_card(idx: int) -> Control:
 		status.text = "Choisis un OS ou un reverse proxy pour démarrer l'installation :"
 		status.add_theme_color_override("font_color", Color(0.8, 0.9, 1.0))
 
-	if not empty and not bay.get("installing", false) and bay.get("os_id", "").is_empty() \
-			and bay.get("proxy_id", "").is_empty():
+	# Serveur EN PANNE posé sur la baie : proposer la RÉPARATION au lieu de l'OS.
+	if not empty and not bay.get("installing", false) and not bay.get("repairing", false) \
+			and not bay.get("repaired", false) and bool(bay.get("item", {}).get("broken", false)):
+		var rcost := ShopCatalog.repair_price(bay["item"])
+		var rbtn := Button.new()
+		rbtn.text = "Réparer (%d $)" % rcost
+		rbtn.custom_minimum_size = Vector2(150, 40)
+		rbtn.add_theme_font_size_override("font_size", 14)
+		rbtn.add_theme_stylebox_override("normal", UITheme.button_normal(Color(0.75, 0.5, 0.2)))
+		rbtn.add_theme_stylebox_override("hover", UITheme.button_hover(Color(0.9, 0.62, 0.28)))
+		rbtn.add_theme_stylebox_override("pressed", UITheme.button_pressed())
+		rbtn.add_theme_stylebox_override("focus", UITheme.button_focus())
+		rbtn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		rbtn.pressed.connect(repair_requested.emit.bind(idx))
+		row.add_child(rbtn)
+
+	# La rangée d'installation n'apparaît que pour un serveur VRAIMENT vierge :
+	# pas de serveur en panne (il garde son OS — on ne peut PAS réinstaller
+	# par-dessus, seul le bouton Réparer est proposé) ni déjà configuré.
+	if not empty and not bay.get("installing", false) and not bay.get("repairing", false) \
+			and not bay.get("repaired", false) and bay.get("os_id", "").is_empty() \
+			and bay.get("proxy_id", "").is_empty() \
+			and not bool(bay.get("item", {}).get("broken", false)) \
+			and not (bay.get("item", {}) as Dictionary).has("os") \
+			and not (bay.get("item", {}) as Dictionary).has("proxy"):
 		# Choix de l'OS (une rangée de petits boutons)
 		var os_row := HBoxContainer.new()
 		os_row.add_theme_constant_override("separation", 8)
@@ -247,7 +280,7 @@ func _bay_card(idx: int) -> Control:
 				pb.pressed.connect(install_requested.emit.bind(idx, p["id"]))
 				proxy_col.add_child(pb)
 
-	if bay.get("installing", false):
+	if bay.get("installing", false) or bay.get("repairing", false):
 		var bar := ProgressBar.new()
 		bar.custom_minimum_size = Vector2(0, 16)
 		bar.max_value = 100.0
@@ -255,7 +288,8 @@ func _bay_card(idx: int) -> Control:
 		info.add_child(bar)
 		_progress_bars.append({"bar": bar, "bay": idx})
 
-	if not empty and (not bay.get("os_id", "").is_empty() or not bay.get("proxy_id", "").is_empty()):
+	if not empty and (not bay.get("os_id", "").is_empty() or not bay.get("proxy_id", "").is_empty() \
+			or bay.get("repaired", false)):
 		var pick := Button.new()
 		pick.text = "Récupérer"
 		pick.custom_minimum_size = Vector2(130, 40)

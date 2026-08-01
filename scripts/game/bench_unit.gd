@@ -10,6 +10,7 @@ extends StaticBody2D
 
 const BAYS := 2
 const INSTALL_TIME := 4.0  # secondes par baie
+const REPAIR_TIME := 120.0  # réparation d'un serveur en panne : ~2 min (la baie est occupée)
 const SIZE := Vector2(66, 30)
 
 var cell := Vector2i(4, 12)  # case de la grille (sauvegarde)
@@ -37,13 +38,22 @@ func _ready() -> void:
 
 
 func _empty_bay() -> Dictionary:
-	return {"item": {}, "os_id": "", "proxy_id": "", "pending_os": "", "pending_proxy": "", "installing": false, "progress": 0.0}
+	return {"item": {}, "os_id": "", "proxy_id": "", "pending_os": "", "pending_proxy": "", "installing": false, "repairing": false, "repaired": false, "progress": 0.0}
 
 
 func _process(delta: float) -> void:
 	var changed := false
 	for bay in bays:
-		if bay.get("installing", false):
+		if bay.get("repairing", false):
+			# RÉPARATION d'un serveur en panne : ~2 min, la baie est occupée
+			# (l'autre baie reste libre — installations et réparations parallèles).
+			bay["progress"] = bay.get("progress", 0.0) + delta / REPAIR_TIME
+			if bay["progress"] >= 1.0:
+				bay["progress"] = 1.0
+				bay["repairing"] = false
+				bay["repaired"] = true
+				changed = true
+		elif bay.get("installing", false):
 			bay["progress"] = bay.get("progress", 0.0) + delta / INSTALL_TIME
 			if bay["progress"] >= 1.0:
 				bay["progress"] = 1.0
@@ -76,6 +86,8 @@ func place(item: Dictionary) -> bool:
 		"pending_os": "",
 		"pending_proxy": "",
 		"installing": false,
+		"repairing": false,
+		"repaired": false,
 		"progress": 0.0,
 	}
 	queue_redraw()
@@ -101,6 +113,24 @@ func start_install(idx: int, os_id: String) -> bool:
 	return true
 
 
+func start_repair(idx: int) -> bool:
+	## Démarre la RÉPARATION d'un serveur EN PANNE posé sur la baie (prix déjà
+	## payé par le garage). La baie est occupée ~2 min ; l'autre baie reste
+	## libre (installations et réparations en PARALLÈLE).
+	if idx < 0 or idx >= bays.size():
+		return false
+	var bay: Dictionary = bays[idx]
+	if bay.get("item", {}).is_empty() or not bool(bay.get("item", {}).get("broken", false)):
+		return false
+	if bay.get("installing", false) or bay.get("repairing", false) or bay.get("repaired", false):
+		return false
+	bay["repairing"] = true
+	bay["repaired"] = false
+	bay["progress"] = 0.0
+	queue_redraw()
+	return true
+
+
 func pickup(idx: int) -> Dictionary:
 	if idx < 0 or idx >= bays.size():
 		return {}
@@ -114,6 +144,11 @@ func pickup(idx: int) -> Dictionary:
 	if not proxy_id.is_empty():
 		it["proxy"] = proxy_id
 		it["proxy_name"] = str(ProxyList.get_proxy(proxy_id).get("name", proxy_id))
+	# Serveur RÉPARÉ : la panne est effacée, l'usure retombe (comme l'ancienne
+	# maintenance instantanée) — prêt à être remonté en armoire.
+	if bay.get("repaired", false):
+		it["broken"] = false
+		it["wear"] = clampf(float(it.get("wear", 0.0)) * 0.3, 0.0, 1.0)
 	bays[idx] = _empty_bay()
 	queue_redraw()
 	return it
@@ -134,8 +169,14 @@ func restore_bays(data: Variant) -> void:
 			"pending_os": str(bd.get("pending_os", bd.get("os", ""))),
 			"pending_proxy": str(bd.get("pending_proxy", bd.get("proxy", ""))),
 			"installing": false,
+			"repairing": bool(bd.get("repairing", false)),
+			"repaired": bool(bd.get("repaired", false)),
 			"progress": float(bd.get("progress", 0.0)),
 		}
+		# Réparation en cours au moment de la sauvegarde : elle reprend.
+		if bays[i]["repairing"] and bays[i]["progress"] >= 1.0:
+			bays[i]["repairing"] = false
+			bays[i]["repaired"] = true
 		if bays[i]["os_id"].is_empty() and bays[i]["proxy_id"].is_empty() \
 				and (not bays[i]["pending_os"].is_empty() or not bays[i]["pending_proxy"].is_empty()) \
 				and bays[i]["progress"] < 1.0:
@@ -161,18 +202,22 @@ func _draw() -> void:
 			draw_texture_rect(BakedAssets.tex("block"), r.grow(-2), false, Color(0.15, 0.17, 0.22))
 
 		var led := "led_grey"
-		if bay.get("installing", false):
+		if bay.get("repairing", false):
+			led = "led_red"  # réparation en cours : LED rouge
+		elif bay.get("installing", false):
 			led = "led_orange"
-		elif not bay.get("os_id", "").is_empty() or not bay.get("proxy_id", "").is_empty():
+		elif not bay.get("os_id", "").is_empty() or not bay.get("proxy_id", "").is_empty() or bay.get("repaired", false):
 			led = "led_green"
 		var led_tex := BakedAssets.tex(led)
 		draw_texture(led_tex, Vector2(bx - led_tex.get_size().x / 2 + 6, -SIZE.y / 2 + 10 - led_tex.get_size().y / 2))
 
-		if bay.get("installing", false):
+		if bay.get("installing", false) or bay.get("repairing", false):
 			var pw := r.size.x - 8
 			draw_texture_rect(BakedAssets.tex("bar_bg"), Rect2(bx + 4, SIZE.y / 2 - 8, pw, 4), false)
 			var fill_w := pw * clampf(bay.get("progress", 0.0), 0.0, 1.0)
-			draw_texture_rect(BakedAssets.tex("bar_fill"), Rect2(bx + 4, SIZE.y / 2 - 8, fill_w, 4), false)
+			# Barre de réparation en rouge, installation en orange/vert.
+			var fill_tex := "bar_fill_red" if bay.get("repairing", false) else "bar_fill"
+			draw_texture_rect(BakedAssets.tex(fill_tex), Rect2(bx + 4, SIZE.y / 2 - 8, fill_w, 4), false)
 
 
 # ------------------------------------------------------------------ bake
