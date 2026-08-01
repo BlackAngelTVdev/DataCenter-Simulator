@@ -12,6 +12,7 @@ var _detail: RichTextLabel
 var _accept_box: HBoxContainer
 var _current_mail: Dictionary = {}
 var _title: Label
+var drag_handle: Control  # poignée de drag (déplacement de la fenêtre)
 
 
 func _ready() -> void:
@@ -46,6 +47,8 @@ func _ready() -> void:
 	close_btn.add_theme_stylebox_override("focus", UITheme.button_focus())
 	close_btn.pressed.connect(func() -> void: closed.emit())
 	title_bar.add_child(close_btn)
+	# Le drag de la fenêtre se fait par la BARRE DE TITRE entière.
+	drag_handle = tb_panel
 
 	# Liste des e-mails (défilante)
 	var scroll := ScrollContainer.new()

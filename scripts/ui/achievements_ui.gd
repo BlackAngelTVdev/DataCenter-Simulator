@@ -7,6 +7,7 @@ extends PanelContainer
 signal closed
 
 var _list_box: VBoxContainer
+var drag_handle: Control  # poignée de drag (déplacement de la fenêtre)
 
 
 func _ready() -> void:
@@ -40,6 +41,8 @@ func _ready() -> void:
 	close_btn.add_theme_stylebox_override("focus", UITheme.button_focus())
 	close_btn.pressed.connect(func() -> void: closed.emit())
 	title_bar.add_child(close_btn)
+	# Le drag de la fenêtre se fait par la BARRE DE TITRE entière.
+	drag_handle = tb_panel
 
 	# Liste des succès (défilante)
 	var scroll := ScrollContainer.new()

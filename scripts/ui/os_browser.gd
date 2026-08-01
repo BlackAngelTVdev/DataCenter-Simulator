@@ -23,6 +23,7 @@ var cash_label: Label
 var flash_label: Label
 var flash_timer: Timer
 var url_edit: LineEdit
+var drag_handle: Control  # poignée de drag (déplacement de la fenêtre)
 # Chaque entrée = { "btn": Button, "item": Dictionary } dans le même ordre que le rendu.
 var buy_entries: Array = []
 
@@ -105,6 +106,7 @@ func _build_title_bar() -> Control:
 	var close_btn := _btn("X", 32.0)
 	close_btn.pressed.connect(func() -> void: closed.emit())
 	bar.add_child(close_btn)
+	drag_handle = panel
 	return panel
 
 
