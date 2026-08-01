@@ -346,6 +346,55 @@ const GOODIES := [
 
 
 # ------------------------------------------------------------------
+#  ACCESSOIRES POUR CHAT — à poser au sol comme la déco. Le chat adopté du
+#  garage les utilise VRAIMENT : cat_spot indique l'usage (tree / litter /
+#  scratch / bed) lu par le GarageCat pour y aller de temps en temps.
+# ------------------------------------------------------------------
+const CAT_STUFF := [
+	{
+		"id": "cat_tree",
+		"kind": "decor",
+		"cat_spot": "tree",
+		"name": "Arbre à chat",
+		"desc": "Un arbre à chat à étages : le chat adopté grimpe dessus et s'y repose.",
+		"price": 80,
+		"heat_bonus": 0.0,
+		"color": Color(0.4, 0.6, 0.35),
+	},
+	{
+		"id": "cat_litter",
+		"kind": "decor",
+		"cat_spot": "litter",
+		"name": "Litière pour chat",
+		"desc": "Une litière propre : le chat y fait ses besoins… et gratte après.",
+		"price": 60,
+		"heat_bonus": 0.0,
+		"color": Color(0.55, 0.5, 0.65),
+	},
+	{
+		"id": "cat_scratch",
+		"kind": "decor",
+		"cat_spot": "scratch",
+		"name": "Griffoir en sisal",
+		"desc": "Un griffoir vertical : le chat fait ses griffes dessus (et plus sur tes serveurs).",
+		"price": 45,
+		"heat_bonus": 0.0,
+		"color": Color(0.75, 0.6, 0.4),
+	},
+	{
+		"id": "cat_bed",
+		"kind": "decor",
+		"cat_spot": "bed",
+		"name": "Panier douillet",
+		"desc": "Un panier moelleux : le chat adopté y dort profondément.",
+		"price": 90,
+		"heat_bonus": 0.0,
+		"color": Color(0.7, 0.4, 0.45),
+	},
+]
+
+
+# ------------------------------------------------------------------
 #  DÉCO — à poser où on veut au sol, juste pour le style (et parfois un
 #  petit bonus). heat_bonus = fraction de chaleur EN MOINS dans le local
 #  (0.01 = -1%). Une plante refroidit un peu ; une affiche ou un néon, non.
@@ -393,6 +442,7 @@ static func shop_items() -> Array:
 	items.append_array(ABOS)
 	items.append_array(PARTNERSHIPS)
 	items.append_array(GOODIES)
+	items.append_array(CAT_STUFF)
 	items.append_array(DECOR)
 	# Reverse proxies (data/proxy_list.gd) : licences logicielles achetables.
 	items.append_array(ProxyList.PROXIES)

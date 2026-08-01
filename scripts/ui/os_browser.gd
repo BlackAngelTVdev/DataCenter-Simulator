@@ -263,7 +263,11 @@ func _render_shop() -> void:
 			"upgrade": upgrades.append(item)
 			"abo": abos.append(item)
 			"catfood": goodies.append(item)
-			"decor": decos.append(item)
+			"decor":
+				# Les ACCESSOIRES POUR CHAT (cat_spot) vivent sur la page NEUF :
+				# ils ne s'affichent pas dans la déco de Tech'Occase.
+				if str(item.get("cat_spot", "")).is_empty():
+					decos.append(item)
 			"proxy": proxies.append(item)
 
 	page_box.add_child(_section_title("Serveurs d'occasion"))
@@ -458,7 +462,9 @@ var _neuf_buy_btn: Button
 
 
 func _render_neuf_shop() -> void:
-	## Configurateur de serveurs NEUFS : on choisit châssis / CPU / RAM /
+	## Site « Neuf » : d'abord les ACCESSOIRES POUR CHAT (disponibles PARTOUT,
+	## même au garage — le chat adopté les utilise vraiment), puis le
+	## configurateur de serveurs NEUFS : on choisit châssis / CPU / RAM /
 	## disques, les specs (clients max, revenus, watts, chaleur) et le prix
 	## découlent de la config. L'achat livre un KIT à assembler sur la table
 	## d'assemblage du Data Hall. Réservé au Local 2 (le garage n'a pas de
@@ -468,6 +474,17 @@ func _render_neuf_shop() -> void:
 	buy_entries.clear()
 	page_box.add_child(_build_neuf_banner())
 	page_box.add_child(_build_site_links())
+
+	# --- Accessoires pour chat : accessibles de partout (le chat vit au garage) ---
+	page_box.add_child(_section_title("Accessoires pour chat"))
+	var cat_hint := Label.new()
+	cat_hint.text = "Pour que le chat adopté se sente chez lui : pose son arbre, sa litière, son griffoir ou son panier où tu veux au sol — il ira VRAIMENT les utiliser (il grimpe, il gratte, il dort…)."
+	cat_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cat_hint.add_theme_font_size_override("font_size", 12)
+	cat_hint.add_theme_color_override("font_color", Color(1.0, 0.85, 0.6))
+	page_box.add_child(cat_hint)
+	for item in ShopCatalog.CAT_STUFF:
+		page_box.add_child(_card(item))
 
 	if GameManager.location != 1:
 		# Site visible depuis TOUT navigateur, mais réservé au Data Hall : le
@@ -1209,6 +1226,16 @@ func _specs(item: Dictionary) -> String:
 				int(item.get("watts", 0)),
 			]
 		"decor":
+			var spot := str(item.get("cat_spot", ""))
+			if not spot.is_empty():
+				# Accessoire pour chat : le chat adopté l'utilise vraiment.
+				var usage: String = {
+					"tree": "il grimpe et s'y repose",
+					"litter": "il fait ses besoins dedans",
+					"scratch": "il fait ses griffes dessus",
+					"bed": "il y dort profondément",
+				}.get(spot, "il l'utilise")
+				return "À poser · pour le chat adopté — %s" % usage
 			var dh := float(item.get("heat_bonus", 0.0))
 			if dh > 0.0:
 				return "À poser · -%d%% de chaleur dans le local" % int(dh * 100)
