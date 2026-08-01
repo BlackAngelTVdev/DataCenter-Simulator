@@ -95,7 +95,9 @@ func _draw() -> void:
 	# --- Rendu runtime : images + surcouches dynamiques ---
 	if _body != null:
 		_body.scale = Vector2.ONE * (0.6 if rack != null else 1.0)
-	var stopped := configured() and GameManager.overheated  # serveur éteint (chauffe)
+	# Serveur arrêté par un incident (surchauffe, DDoS non bloqué, coupure de
+	# courant sans UPS) : règle centralisée dans GameManager.server_stopped.
+	var stopped := GameManager.server_stopped(self)
 	if _led != null:
 		var led_name := "led_red" if (is_saturated() or stopped) \
 			else ("led_green" if configured() else "led_grey")

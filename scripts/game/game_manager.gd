@@ -24,6 +24,17 @@ var temperature := TEMP_AMBIANT
 var abo_id := DEFAULT_ABO
 var firewall_owned := false
 
+## --- Incidents réseau (DDoS / coupures de courant) ---
+## Événements transitoires gérés au tick par le garage : jamais sauvegardés.
+## Le pare-feu bloque les DDoS ; les armoires avec onduleur (UPS) survivent
+## aux coupures.
+var ddos_active := false
+var ddos_ticks_left := 0
+var ddos_cooldown := 0
+var outage_active := false
+var outage_ticks_left := 0
+var outage_cooldown := 0
+
 ## Refroidissement total des clims du local courant (recalculé au tick).
 var cooling_total := 0.0
 
@@ -90,6 +101,12 @@ func reset() -> void:
 	temperature = TEMP_AMBIANT
 	abo_id = DEFAULT_ABO
 	firewall_owned = false
+	ddos_active = false
+	ddos_ticks_left = 0
+	ddos_cooldown = 0
+	outage_active = false
+	outage_ticks_left = 0
+	outage_cooldown = 0
 	cooling_total = 0.0
 	overheated = false
 	owned = {DEFAULT_ABO: true}  # l'abo de base est déjà « possédé »
@@ -133,5 +150,22 @@ func mark_owned(id: String) -> void:
 
 func bandwidth_limit() -> int:
 	## Nombre max de clients en ligne simultanément (selon l'abonnement).
-	return int(ShopCatalog.get_abo(abo_id).get("clients", 8))	# (Le pare-feu n'augmente PAS les revenus : il ne sert qu'à bloquer
-	# les attaques réseau — une mécanique à venir.)
+	return int(ShopCatalog.get_abo(abo_id).get("clients", 8))  # Le pare-feu n'augmente PAS les revenus :
+	# il bloque les attaques DDoS (voir garage_scene._update_incidents).
+
+
+func server_stopped(s: ServerUnit) -> bool:
+	## Source unique de la règle « serveur arrêté par un incident » :
+	## surchauffe (tous éteints), DDoS sans pare-feu (tous hors ligne) ou
+	## coupure de courant (seuls les serveurs montés sur armoire avec onduleur
+	## UPS survivent). Utilisée par le garage (revenus), l'affichage des
+	## serveurs et le Monitor — un seul endroit à modifier si la règle évolue.
+	if not s.configured():
+		return false
+	if overheated:
+		return true
+	if ddos_active and not firewall_owned:
+		return true
+	if outage_active and (s.rack == null or not s.rack.has_battery()):
+		return true
+	return false

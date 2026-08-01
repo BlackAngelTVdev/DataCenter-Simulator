@@ -66,6 +66,21 @@ const CRATE_SPOTS := [
 
 const AUTOSAVE_INTERVAL := 60.0  # sauvegarde automatique toutes les 60 s
 
+## Incidents réseau (DDoS / coupures) : probabilité de départ par tick (1 s)
+## et durées. Le pare-feu bloque les DDoS ; les armoires avec onduleur (UPS)
+## survivent aux coupures. Ça rend enfin utiles le Pare-feu Forteresse et la
+## batterie, et ça ajoute du stress « est-ce que je suis protégé ? ».
+const DDOS_CHANCE := 0.012
+const DDOS_DUR_MIN := 10
+const DDOS_DUR_MAX := 22
+const DDOS_COOLDOWN_MIN := 45
+const DDOS_COOLDOWN_MAX := 90
+const OUTAGE_CHANCE := 0.008
+const OUTAGE_DUR_MIN := 8
+const OUTAGE_DUR_MAX := 16
+const OUTAGE_COOLDOWN_MIN := 50
+const OUTAGE_COOLDOWN_MAX := 100
+
 var player: Player
 var hud: HUD
 var computer_os: ComputerOS
@@ -1332,7 +1347,7 @@ func _recompute_stats() -> void:
 	var cooling := 0.0
 	for s in placed_servers:
 		total_watts += int(s.item.get("watts", 0))
-		if s.configured():
+		if _server_running(s):
 			total_clients += s.clients
 			total_income += s.income_per_sec()
 			total_heat += s.heat()
@@ -1352,6 +1367,7 @@ func _recompute_stats() -> void:
 # ------------------------------------------------------------------ Économie (tick 1s)
 func _on_tick() -> void:
 	tick += 1
+	_update_incidents()
 	var bw := GameManager.bandwidth_limit()
 	var total_clients := 0
 	for s in placed_servers:
@@ -1370,14 +1386,27 @@ func _on_tick() -> void:
 		hud.toast("Température redescendue : les serveurs redémarrent !")
 
 	# Les clients arrivent (limités par les slots + la bande passante) — sauf
-	# en cas de surchauffe : les serveurs sont éteints, personne ne se connecte.
-	if not overheat:
+	# en cas de surchauffe, DDoS ou coupure : les serveurs arrêtés n'attirent
+	# personne.
+	for s in placed_servers:
+		if not _server_running(s):
+			continue
+		if s.clients < s.max_clients() and total_clients < bw and randf() < CLIENT_FILL_CHANCE:
+			s.clients += 1
+			total_clients += 1
+			s.queue_redraw()
+
+	# Pendant un incident non protégé, les clients FUYENT les serveurs arrêtés.
+	if GameManager.ddos_active and not GameManager.firewall_owned:
 		for s in placed_servers:
-			if not s.configured():
-				continue
-			if s.clients < s.max_clients() and total_clients < bw and randf() < CLIENT_FILL_CHANCE:
-				s.clients += 1
-				total_clients += 1
+			if s.configured() and s.clients > 0:
+				s.clients = maxi(0, s.clients - maxi(1, int(float(s.clients) * 0.25)))
+				s.queue_redraw()
+	if GameManager.outage_active:
+		for s in placed_servers:
+			if s.configured() and s.clients > 0 \
+					and (s.rack == null or not s.rack.has_battery()):
+				s.clients = maxi(0, s.clients - maxi(1, int(float(s.clients) * 0.25)))
 				s.queue_redraw()
 
 	# Alertes de saturation
@@ -1400,7 +1429,7 @@ func _on_tick() -> void:
 	for s in placed_servers:
 		total_watts += int(s.item.get("watts", 0))
 		if s.configured():
-			if not overheat:
+			if _server_running(s):
 				total_income += s.income_per_sec()
 				total_heat += s.heat()
 			if s.clients < s.max_clients():
@@ -1434,10 +1463,52 @@ func _on_tick() -> void:
 		hud.toast("Connexion saturée ! Achète un meilleur abonnement sur Tech'Occase.")
 
 
+func _server_running(s: ServerUnit) -> bool:
+	## Un serveur PRODUIT-IL en ce moment ? Délègue la règle (incidents) à
+	## GameManager.server_stopped — source unique de vérité, aussi utilisée par
+	## l'affichage des serveurs (server_unit) et le Monitor.
+	return s.configured() and not GameManager.server_stopped(s)
+
+
+func _update_incidents() -> void:
+	## DDoS et coupures de courant : états aléatoires gérés au tick (1 s).
+	# --- Attaque DDoS ---
+	if GameManager.ddos_ticks_left > 0:
+		GameManager.ddos_ticks_left -= 1
+		if GameManager.ddos_ticks_left == 0:
+			GameManager.ddos_active = false
+			if not GameManager.firewall_owned:
+				hud.toast("Attaque DDoS terminée : tes serveurs reviennent en ligne.")
+	elif GameManager.ddos_cooldown > 0:
+		GameManager.ddos_cooldown -= 1
+	elif not GameManager.outage_active and _online_servers() > 0 and randf() < DDOS_CHANCE:
+		GameManager.ddos_active = true
+		GameManager.ddos_ticks_left = randi_range(DDOS_DUR_MIN, DDOS_DUR_MAX)
+		GameManager.ddos_cooldown = randi_range(DDOS_COOLDOWN_MIN, DDOS_COOLDOWN_MAX)
+		if GameManager.firewall_owned:
+			hud.toast("ALERTE : attaque DDoS bloquée par le Pare-feu Forteresse !")
+		else:
+			hud.toast("ALERTE : attaque DDoS ! Serveurs hors ligne %d s — achète un pare-feu sur Tech'Occase." % GameManager.ddos_ticks_left)
+
+	# --- Coupure de courant ---
+	if GameManager.outage_ticks_left > 0:
+		GameManager.outage_ticks_left -= 1
+		if GameManager.outage_ticks_left == 0:
+			GameManager.outage_active = false
+			hud.toast("Retour du courant : les serveurs redémarrent.")
+	elif GameManager.outage_cooldown > 0:
+		GameManager.outage_cooldown -= 1
+	elif not GameManager.ddos_active and _online_servers() > 0 and randf() < OUTAGE_CHANCE:
+		GameManager.outage_active = true
+		GameManager.outage_ticks_left = randi_range(OUTAGE_DUR_MIN, OUTAGE_DUR_MAX)
+		GameManager.outage_cooldown = randi_range(OUTAGE_COOLDOWN_MIN, OUTAGE_COOLDOWN_MAX)
+		hud.toast("Coupure de courant ! Les serveurs SANS onduleur (UPS) s'éteignent — les armoires avec batterie tiennent.")
+
+
 func _online_servers() -> int:
 	var n := 0
 	for s in placed_servers:
-		if s.configured():
+		if _server_running(s):
 			n += 1
 	return n
 
