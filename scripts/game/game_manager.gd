@@ -74,10 +74,6 @@ var rack_limit_2 := 6
 ## Position sauvegardée du joueur par local (téléportation + sauvegarde).
 var player_pos: Dictionary = {0: Vector2.ZERO, 1: Vector2.ZERO}
 
-## Timestamp de la dernière téléportation (revenus « pendant l'absence »).
-## Jamais sauvegardé : ne sert que pour le rattrapage au changement de scène.
-var last_switch_ts := 0.0
-
 ## Objet dans les mains du joueur (état GLOBAL — il voyage avec lui en
 ## voiture, contrairement au monde placé qui est par local).
 var carried: Dictionary = {}
@@ -154,7 +150,6 @@ func reset() -> void:
 	location_unlocked = false
 	rack_limit_2 = 6
 	player_pos = {0: Vector2.ZERO, 1: Vector2.ZERO}
-	last_switch_ts = 0.0
 	carried = {}
 	worlds = {0: {}, 1: {}}
 	pending_teleport = -1

@@ -245,7 +245,6 @@ func _route_or_load() -> void:
 		player.carried_item = GameManager.carried.duplicate(true)
 		_just_teleported = true
 		_place_player_at_saved_pos()
-		_apply_offline_income()
 		return
 	# Chargement depuis le menu : cette scène doit correspondre au lieu de la
 	# sauvegarde (sinon on bascule sans consommer le slot).
@@ -1096,7 +1095,6 @@ func _teleport(target: int) -> void:
 	GameManager.carried = player.carried_item.duplicate(true)
 	GameManager.worlds[location_id] = world_placed()
 	GameManager.pending_teleport = target
-	GameManager.last_switch_ts = Time.get_unix_time_from_system()
 	get_tree().paused = false
 	# La scène cible vient du catalogue data/locations.gd : ajouter un local
 	# = une ligne dans PLACES, rien d'autre à toucher.
@@ -1106,35 +1104,136 @@ func _teleport(target: int) -> void:
 	get_tree().change_scene_to_file(scene)
 
 
-func _apply_offline_income() -> void:
-	## Les serveurs « travaillent » pendant l'absence : revenus de rattrapage.
-	## (Pas de rattrapage en surchauffe : les serveurs sont arrêtés.)
-	var now := Time.get_unix_time_from_system()
-	var last := GameManager.last_switch_ts
-	GameManager.last_switch_ts = now
-	if last <= 0.0:
-		return
-	var elapsed := now - last
+func _other_world_id() -> int:
+	return 1 - location_id
+
+
+func _snapshot_port_cost(s: Dictionary) -> int:
+	## Ports réseau consommés par un serveur SÉRIALISÉ (Data Hall) : 3 pour un
+	## nœud VPS (Proxmousse), 2 pour un reverse proxy, 1 pour un serveur dédié.
+	## Réplique de RackUnit.port_cost sur les données du snapshot.
+	if not str(s.get("proxy", "")).is_empty():
+		return 2
+	if OSList.get_os(str(s.get("os", ""))).get("hosting", "dedicated") == "vps":
+		return 3
+	return 1
+
+
+func _snapshot_port_exhausted(s_idx: int, rack: Dictionary, world: Dictionary) -> bool:
+	## Le serveur (à l'INDEX s_idx du tableau "servers") est-il dans un rack
+	## dont le switch est SATURÉ en ports ? Reproduit RackUnit.port_exhausted_for
+	## sur le snapshot : les ports sont attribués dans l'ordre du tableau
+	## (ordre de montage approximatif) — les derniers montés restent débranchés.
+	## L'index sert d'identité (pas de comparaison profonde de dictionnaires).
+	var sw: Dictionary = rack.get("switch", {})
+	if sw.is_empty():
+		return false
+	var cap := int(sw.get("ports", 8))
+	var servers: Array = world.get("servers", [])
+	var s_cell := GameSave.cell_from(servers[s_idx].get("cell", []))
+	var used := 0
+	for i in range(servers.size()):
+		var sd: Variant = servers[i]
+		if typeof(sd) != TYPE_DICTIONARY:
+			continue
+		var sd_dict: Dictionary = sd
+		if not bool(sd_dict.get("racked", false)):
+			continue
+		if GameSave.cell_from(sd_dict.get("cell", [])) != s_cell:
+			continue
+		if i == s_idx:
+			return used + _snapshot_port_cost(sd_dict) > cap
+		used += _snapshot_port_cost(sd_dict)
+	return false
+
+
+func _snapshot_max_clients(s: Dictionary, racked: bool) -> int:
+	## Capacité max de clients d'un serveur SÉRIALISÉ (réplique de
+	## ServerUnit.max_clients : slots × mult de l'OS, doublé si monté en armoire).
+	if not str(s.get("proxy", "")).is_empty():
+		return 0  # un reverse proxy ne stocke aucun client
+	var base := float(int((s.get("item", {}) as Dictionary).get("slots", 4))) \
+		* float(OSList.get_os(str(s.get("os", ""))).get("slot_mult", 1.0))
+	var total := int(round(base))
+	if racked:
+		total *= 2
+	return total
+
+
+func _simulate_other_world(fill_clients: bool = true) -> float:
+	## Revenus PAR SECONDE de l'AUTRE local (celui où l'on n'est PAS), simulés
+	## depuis son monde sérialisé (GameManager.worlds). C'est ce qui fait que
+	## le GARAGE rapporte quand on est au Data Hall, et inversement : les deux
+	## locaux travaillent EN CONTINU, plus besoin de rattrapage au retour. Les
+	## clients continuent aussi de remplir les serveurs de l'autre local (sa
+	## progression continue à distance, et elle est sauvegardée).
+	## fill_clients = false : calcul PUR (pour _recompute_stats, fonction
+	## d'affichage) — on ne mute PAS le snapshot et on n'utilise pas de hasard.
+	var other_id := _other_world_id()
+	var world: Dictionary = GameManager.worlds.get(other_id, {})
+	if world.is_empty():
+		return 0.0
+	# Index des armoires par case : pour retrouver switch / batterie des
+	# serveurs montés (même règle d'arrêt que le local courant).
+	var racks_by_cell := {}
+	for rd in world.get("racks", []):
+		if typeof(rd) != TYPE_DICTIONARY:
+			continue
+		var r: Dictionary = rd
+		var rc := GameSave.cell_from(r.get("cell", []))
+		racks_by_cell[Vector2i(rc.x, rc.y)] = r
 	var income := 0.0
-	if not GameManager.overheated:
-		# Seuls les serveurs EN LIGNE travaillent pendant l'absence : un serveur
-		# sans switch / sans port (Data Hall) ou en panne ne rapporte pas non plus.
-		for s in placed_servers:
-			if _server_running(s):
-				income += s.income_per_sec()
-	# Les contrats clients (revenus GARANTIS par mois) s'accumulent aussi
-	# pendant l'absence — c'est leur promesse.
-	income += GameManager.contract_income_per_sec()
-	# Les contrats D'ENTREPRISE aussi (revenu garanti ou pénalité selon les
-	# exigences, évaluées sur l'état actuel du local au retour).
-	for cid in GameManager.enterprise_contracts:
-		var ent := EnterpriseContract.get_contract(str(cid))
-		if not ent.is_empty():
-			income += EnterpriseContract.income_per_sec(ent, self)
-	if income > 0.0 and elapsed >= 1:
-		var gained := income * elapsed
-		GameManager.cash += gained
-		hud.toast("%d serveur(s) ont travaillé pendant ton absence : +%d $." % [_online_servers(), int(gained)])
+	var total_clients := 0
+	var servers_arr: Array = world.get("servers", [])
+	for idx in range(servers_arr.size()):
+		var sd: Variant = servers_arr[idx]
+		if typeof(sd) != TYPE_DICTIONARY:
+			continue
+		var s: Dictionary = sd
+		var os_id := str(s.get("os", ""))
+		var proxy_id := str(s.get("proxy", ""))
+		if os_id.is_empty() and proxy_id.is_empty():
+			continue  # pas configuré (pas d'OS ni de proxy)
+		if bool(s.get("broken", false)):
+			continue  # en panne : ne produit plus rien
+		var racked := bool(s.get("racked", false))
+		var rack: Dictionary = {}
+		if racked:
+			var sc := GameSave.cell_from(s.get("cell", []))
+			rack = racks_by_cell.get(Vector2i(sc.x, sc.y), {})
+			# Pas de switch réseau : rien n'est branché (aucun revenu).
+			if rack.is_empty() or (rack.get("switch", {}) as Dictionary).is_empty():
+				continue
+			# DATA HALL : le switch a des ports limités — les derniers serveurs
+			# montés au-delà de la capacité ne sont pas branchés non plus.
+			if other_id == 1 and _snapshot_port_exhausted(idx, rack, world):
+				continue
+		# Incidents GLOBAUX (surchauffe, DDoS, coupure) : ils touchent les deux
+		# locaux en même temps — les serveurs arrêtés ne rapportent rien.
+		if GameManager.overheated:
+			continue
+		if GameManager.ddos_active and not GameManager.firewall_owned:
+			continue
+		if GameManager.outage_active and (not racked or (rack.get("battery", {}) as Dictionary).is_empty()):
+			continue
+		# Les clients continuent d'affluer (comme au local courant), dans la
+		# limite de la bande passante de l'abonnement. Uniquement au TICK : le
+		# calcul de stats (affichage) reste pur, sans mutation ni hasard.
+		var clients := int(s.get("clients", 0))
+		if fill_clients and proxy_id.is_empty():
+			var maxc := _snapshot_max_clients(s, racked)
+			if clients < maxc and total_clients < GameManager.bandwidth_limit() \
+					and randf() < CLIENT_FILL_CHANCE:
+				clients += 1
+				s["clients"] = clients
+			total_clients += clients
+		if not proxy_id.is_empty():
+			continue  # un reverse proxy ne facture pas d'hébergement
+		var item: Dictionary = GameSave.restore_item(s.get("item", {}))
+		var mult := float(OSList.get_os(os_id).get("income_mult", 1.0))
+		mult *= ShopCatalog.income_multiplier(item)
+		income += float(item.get("income", 0.0)) * clients * mult
+	return income
 
 
 # ------------------------------------------------------------------ Monde (snapshot / restore)
@@ -1741,8 +1840,12 @@ func _recompute_stats() -> void:
 		# Les clims consomment de l'électricité (elles apparaissent sur les factures)
 		total_watts += int(c.item.get("watts", 0))
 	GameManager.total_clients = total_clients
-	# Les contrats clients (app Mail) garantissent des revenus par mois.
-	var stats_income := total_income + GameManager.contract_income_per_sec()
+	# Les contrats clients (app Mail) garantissent des revenus par mois. Et
+	# l'AUTRE local rapporte aussi (simulation depuis son monde sérialisé) :
+	# le HUD affiche le revenu TOTAL, pas seulement celui du local courant.
+	# Calcul PUR (fill_clients = false) : on est dans une fonction d'affichage,
+	# on ne mute pas le snapshot de l'autre local avec du hasard ici.
+	var stats_income := total_income + _simulate_other_world(false) + GameManager.contract_income_per_sec()
 	# Les contrats D'ENTREPRISE rapportent aussi (revenu ou pénalité) — même
 	# calcul qu'au tick, pour que le Monitor ne « mente » pas après un load.
 	for cid in GameManager.enterprise_contracts:
@@ -1873,9 +1976,12 @@ func _on_tick() -> void:
 		total_watts += int(c.item.get("watts", 0))
 	GameManager.cooling_total = cooling
 
+	# L'AUTRE local continue de travailler pendant qu'on est ici : le garage
+	# rapporte au Data Hall et inversement (simulation depuis son monde).
+	var other_income := _simulate_other_world()
 	# Les contrats clients (app Mail) garantissent des revenus mensuels :
 	# ajoutés indépendamment des serveurs (même en surchauffe/incident).
-	var income := total_income + GameManager.contract_income_per_sec()  # le pare-feu n'augmente pas les revenus
+	var income := total_income + other_income + GameManager.contract_income_per_sec()  # le pare-feu n'augmente pas les revenus
 	# Les contrats D'ENTREPRISE (navigateur Renard) rapportent TANT QUE leurs
 	# exigences tiennent (serveurs dédiés, clims…), sinon c'est une pénalité.
 	for cid in GameManager.enterprise_contracts:
