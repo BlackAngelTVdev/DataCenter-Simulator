@@ -35,6 +35,16 @@ static func first_free_slot() -> int:
 	return 0
 
 
+static func has_free_slot() -> bool:
+	## Y a-t-il au moins un emplacement vide ? (garde anti-écrasement pour
+	## l'autosave : une nouvelle partie sans emplacement ne doit JAMAIS
+	## écraser une sauvegarde existante.)
+	for slot in range(SLOT_COUNT):
+		if slot_meta(slot).is_empty():
+			return true
+	return false
+
+
 static func save_data(slot: int, data: Dictionary) -> bool:
 	## Écrit un dictionnaire JSON quelconque dans un emplacement.
 	slot = clampi(slot, 0, SLOT_COUNT - 1)

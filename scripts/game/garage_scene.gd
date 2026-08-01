@@ -64,6 +64,8 @@ const CRATE_SPOTS := [
 	Vector2(672, 600),
 ]
 
+const AUTOSAVE_INTERVAL := 60.0  # sauvegarde automatique toutes les 60 s
+
 var player: Player
 var hud: HUD
 var computer_os: ComputerOS
@@ -91,6 +93,10 @@ var tick := 0
 var bandwidth_warn_tick := 0
 var _just_teleported := false
 var _overheat_announced := false  # toast de surchauffe déjà affiché (anti-spam)
+
+# --- Événements aléatoires (vie du garage) ---
+var event_timer: Timer
+var garage_cat: GarageCat
 
 
 # ------------------------------------------------------------------ Config par local
@@ -159,6 +165,8 @@ func _ready() -> void:
 	_build_player()
 	_build_ui()
 	_build_tick_timer()
+	_build_autosave_timer()
+	_build_event_timer()
 	_route_or_load()
 	_refresh_delivery_crates()
 	_recompute_stats()
@@ -448,6 +456,37 @@ func _build_tick_timer() -> void:
 	timer.autostart = true
 	timer.timeout.connect(_on_tick)
 	add_child(timer)
+
+
+func _build_autosave_timer() -> void:
+	## Sauvegarde automatique périodique : la progression est écrite sur disque
+	## toutes les AUTOSAVE_INTERVAL secondes (les deux locaux partagent le
+	## script, donc l'autosave fonctionne aussi dans le Data Hall).
+	var timer := Timer.new()
+	timer.name = "AutoSaveTimer"
+	timer.wait_time = AUTOSAVE_INTERVAL
+	timer.autostart = true
+	timer.timeout.connect(_autosave)
+	add_child(timer)
+
+
+func _build_event_timer() -> void:
+	## Événements aléatoires : uniquement dans le GARAGE (local 0) pour le
+	## moment — rend le local de départ vivant (chat, livraison surprise,
+	## pourboire, ambiance). Le Data Hall garde son calme de data center.
+	if location_id != 0:
+		return
+	event_timer = Timer.new()
+	event_timer.name = "EventTimer"
+	event_timer.one_shot = true
+	event_timer.timeout.connect(_on_random_event)
+	add_child(event_timer)
+	_arm_event_timer()
+
+
+func _arm_event_timer() -> void:
+	event_timer.wait_time = randf_range(20.0, 45.0)
+	event_timer.start()
 
 
 # ------------------------------------------------------------------ Interaction
@@ -1407,6 +1446,77 @@ func _on_os_installed(_os_id: String) -> void:
 	hud.toast("OS installé ! Maintenant pose le serveur dans le garage (E).")
 
 
+# ------------------------------------------------------------------ Événements aléatoires (vie du garage)
+func _on_random_event() -> void:
+	## Un événement inattendu parmi le pool : ça anime le garage et donne
+	## envie d'y rester (ou de se demander d'où sort ce chat).
+	if location_id != 0:
+		return
+	if not is_instance_valid(event_timer):
+		return
+	var roll := randf()
+	if roll < 0.30:
+		_spawn_garage_cat()
+	elif roll < 0.40:
+		# Livraison surprise : RAREMENT (le joueur trouvait qu'il y avait
+		# trop de colis gratuits qui s'empilaient devant la porte).
+		_surprise_delivery()
+	elif roll < 0.70:
+		_client_tip()
+	else:
+		_ambient_toast()
+	_arm_event_timer()
+
+
+func _spawn_garage_cat() -> void:
+	## Un chat du quartier entre par la porte de livraison et se balade.
+	if is_instance_valid(garage_cat):
+		return  # déjà un chat en train de traîner
+	garage_cat = GarageCat.new()
+	garage_cat.name = "GarageCat"
+	add_child(garage_cat)
+	hud.toast("🐱 Un chat du quartier est entré dans le garage… il inspecte tes serveurs.")
+
+
+func _surprise_delivery() -> void:
+	## Un livreur s'est trompé d'adresse : matériel gratuit livré dehors.
+	## Rare ET seulement s'il reste de la place devant la porte (pas de pile
+	## de colis illimitée — le joueur s'en plaignait).
+	if GameManager.deliveries.size() >= 2:
+		return
+	var pool: Array = []
+	for item in ShopCatalog.shop_items():
+		var kind := str(item.get("kind", ""))
+		if kind in ["server", "furniture", "clim", "battery"] and int(item.get("price", 0)) <= 150:
+			pool.append(item)
+	if pool.is_empty():
+		return
+	var item: Dictionary = pool[randi() % pool.size()].duplicate(true)
+	GameManager.deliveries.append(item)
+	_refresh_delivery_crates()
+	hud.toast("📦 Livraison surprise : un livreur s'est trompé d'adresse — %s gratuit devant la porte !" % item.get("name", "colis"))
+
+
+func _client_tip() -> void:
+	## Un client satisfait laisse un pourboire en liquide.
+	var tip := randi_range(15, 60) + int(GameManager.income_per_sec * 10.0)
+	GameManager.cash += tip
+	hud.toast("💶 Un client te laisse un pourboire : +%d $ !" % tip)
+
+
+func _ambient_toast() -> void:
+	## Petites scènes de vie : le garage n'est pas un décor mort.
+	var msgs := [
+		"📻 Le voisin écoute la radio à fond. Tu entends du synthwave.",
+		"🕊 Un pigeon s'est posé sur la box réseau. Il supervise.",
+		"🔔 Quelqu'un sonne… Personne. Livreur perdu, sans doute.",
+		"🧰 Tu retrouves un vieux tournevis sous l'établi. +2 de motivation.",
+		"🌧 Il pleut dehors. Les serveurs adorent la fraîcheur.",
+		"🍕 Une pizza est livrée par erreur. Tu la gardes. (Elle est délicieuse.)",
+	]
+	hud.toast(msgs[randi() % msgs.size()])
+
+
 # ------------------------------------------------------------------ HUD / livraisons
 # Les panneaux de stats (argent/réseau) ont été retirés du HUD : rien ne
 # recouvre la vue. Les stats restent calculées (GameManager) pour la logique,
@@ -1436,8 +1546,28 @@ func _on_save_requested() -> void:
 
 
 func _on_quit_requested() -> void:
+	# Sauvegarde automatique au retour au menu : on ne perd jamais sa progression.
+	_autosave()
 	get_tree().paused = false
 	get_tree().change_scene_to_file(MENU_SCENE)
+
+
+func _notification(what: int) -> void:
+	# Fermeture de la fenêtre (croix / Alt+F4) : sauvegarde avant de quitter.
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_autosave()
+
+
+func _autosave() -> void:
+	## Sauvegarde automatique (timer périodique, retour au menu, fermeture de
+	## fenêtre). Réutilise GameSave.persist → même emplacement que la partie
+	## en cours, sinon un emplacement libre. Garde anti-écrasement : une
+	## nouvelle partie ne remplace JAMAIS une sauvegarde existante.
+	if GameManager.pending_teleport >= 0:
+		return  # téléportation en cours : le monde n'est pas stable
+	if SaveManager.current_slot < 0 and not SaveManager.has_free_slot():
+		return  # nouvelle partie mais plus d'emplacement libre : on n'écrase rien
+	GameSave.persist(self)
 
 
 # ------------------------------------------------------------------ Rendu du sol
