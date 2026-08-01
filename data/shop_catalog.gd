@@ -98,6 +98,35 @@ const FURNITURE := [
 
 
 # ------------------------------------------------------------------
+#  SWITCHES RÉSEAU — OBLIGATOIRES dans CHAQUE armoire : sans switch, les
+#  serveurs montés ne sont PAS branchés au réseau (aucun revenu, aucune
+#  activité). Les switches coûtent cher : c'est le ticket d'entrée d'un
+#  vrai rack. Se posent contre une armoire (comme les batteries).
+#  quality = qualité : meilleure qualité = moins de chaleur (switch actif).
+# ------------------------------------------------------------------
+const SWITCHES := [
+	{
+		"id": "switch_8p",
+		"kind": "switch",
+		"name": "Switch 8 ports",
+		"desc": "Le switch de base : indispensable pour brancher une armoire au réseau. Sans lui, les serveurs montés ne rapportent RIEN.",
+		"price": 180,
+		"quality": 0.0,
+		"color": Color(0.3, 0.5, 0.8),
+	},
+	{
+		"id": "switch_24p",
+		"kind": "switch",
+		"name": "Switch L3 24 ports",
+		"desc": "Switch de gestion (L3) : plus fiable, ses serveurs chauffent -10%. Cher mais solide.",
+		"price": 450,
+		"quality": 0.10,
+		"color": Color(0.25, 0.65, 0.9),
+	},
+]
+
+
+# ------------------------------------------------------------------
 #  BATTERIES / ONDULEURS — se montent dans le slot batterie d'une armoire
 #  Pro. Un onduleur stabilise l'alimentation : -30% de chaleur pour les
 #  serveurs de l'armoire.
@@ -349,6 +378,7 @@ static func shop_items() -> Array:
 	var items := []
 	items.append_array(SERVERS)
 	items.append_array(FURNITURE)
+	items.append_array(SWITCHES)
 	items.append_array(BATTERIES)
 	items.append_array(CLIMS)
 	items.append_array(LOCALS)
