@@ -713,6 +713,9 @@ func _render_monitor() -> void:
 	_add_infra_row(infra_grid, "Température", "temp")
 	_add_infra_row(infra_grid, "Refroidissement", "cooling")
 	_add_infra_row(infra_grid, "Climatiseurs", "clims")
+	# DATA HALL : gestion réseau complexe — utilisation des ports des switches.
+	if GameManager.location == 1:
+		_add_infra_row(infra_grid, "Ports réseau", "ports")
 	page_box.add_child(infra_card)
 
 	# --- Serveurs ---
@@ -812,6 +815,7 @@ func _refresh_monitor() -> void:
 	mon_infra.get("temp", Label.new()).text = "%.1f °C" % gm.temperature
 	mon_infra.get("cooling", Label.new()).text = "-%.2f °C/s" % (gm.cooling_total * GameManager.HEAT_PER_SEC)
 	mon_infra.get("clims", Label.new()).text = "%d" % garage.placed_clims.size()
+	mon_infra.get("ports", Label.new()).text = garage._ports_usage()
 
 	# Serveurs (liste reconstruite — peu fréquente)
 	for child in mon_servers_box.get_children():
@@ -1010,9 +1014,11 @@ func _specs(item: Dictionary) -> String:
 			return "Slot batterie d'armoire Pro · -30% de chaleur pour ses serveurs"
 		"switch":
 			var q := float(item.get("quality", 0.0))
+			var ports := int(item.get("ports", 8))
+			var stext := "À monter contre une armoire · %d ports réseau" % ports
 			if q > 0.0:
-				return "À monter contre une armoire · -%d%% de chaleur pour ses serveurs" % int(q * 100)
-			return "À monter contre une armoire · branche les serveurs au réseau"
+				stext += " · -%d%% de chaleur pour ses serveurs" % int(q * 100)
+			return stext
 		"clim":
 			return "Refroidit : -%.2f °C/s · consomme %d W · à poser au sol" % [
 				float(item.get("cooling", 0.0)) * GameManager.HEAT_PER_SEC,  # unités de chaleur : °C/s
@@ -1024,7 +1030,7 @@ func _specs(item: Dictionary) -> String:
 				return "À poser · -%d%% de chaleur dans le local" % int(dh * 100)
 			return "À poser · purement décoratif"
 		"upgrade":
-			return "S'applique immédiatement · +25%% de revenus"
+			return "S'applique immédiatement · bloque les DDoS · protège jusqu'à %d clients en ligne (Data Hall)" % GameManager.FIREWALL_CAPACITY
 		"local":
 			if item.get("unlock_location", 0) != 0:
 				return "Débloque le Local 2 — Data Hall : PC Pro, établi 2 baies, armoires 4 slots"

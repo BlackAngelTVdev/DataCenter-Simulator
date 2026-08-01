@@ -221,6 +221,17 @@ func _switch_section() -> void:
 		stats.add_theme_font_size_override("font_size", 12)
 		stats.add_theme_color_override("font_color", Color(0.6, 0.95, 1.0))
 		info.add_child(stats)
+		# DATA HALL : gestion réseau COMPLEXE — le switch a des PORTS limités.
+		# Au garage (chill), pas de gestion de ports : rien à afficher.
+		if GameManager.location == 1:
+			var ports_label := Label.new()
+			var used := rack.ports_used()
+			var cap := rack.switch_ports()
+			var sat := used > cap
+			ports_label.text = "Ports réseau : %d / %d%s" % [used, cap, " — SATURÉ !" if sat else ""]
+			ports_label.add_theme_font_size_override("font_size", 12)
+			ports_label.add_theme_color_override("font_color", Color(1.0, 0.4, 0.35) if sat else Color(0.6, 1.0, 0.7))
+			info.add_child(ports_label)
 		var btn := Button.new()
 		btn.text = "Retirer"
 		btn.custom_minimum_size = Vector2(120, 38)
