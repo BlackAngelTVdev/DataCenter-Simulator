@@ -10,6 +10,7 @@ var item: Dictionary = {}
 var progress: ProgressBar
 var status_label: Label
 var buttons: Array[Button] = []
+var proxy_buttons := {}  # id du proxy -> Button (licences possédées visibles)
 var _installing := false
 
 
@@ -101,6 +102,31 @@ func _build() -> void:
 		vb.add_child(b)
 		buttons.append(b)
 
+	# REVERSE PROXIES (licences achetées au shop, data/proxy_list.gd) : la
+	# machine ne stocke AUCUN client, mais elle ajoute de la bande passante au
+	# local courant — indispensable pour dépasser 400 clients dans le Data Hall.
+	var proxy_hint := Label.new()
+	proxy_hint.text = "Reverse proxy : la machine ne stocke aucun client, mais ajoute de la bande passante au local — le moyen de dépasser 400 clients. (Achète la licence au shop.)"
+	proxy_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	proxy_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	proxy_hint.add_theme_font_size_override("font_size", 12)
+	proxy_hint.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
+	vb.add_child(proxy_hint)
+
+	for p in ProxyList.PROXIES:
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(0, 56)
+		b.add_theme_font_size_override("font_size", 15)
+		b.text = "%s · +%d clients\n%s" % [p["name"], int(p.get("clients", 0)), p.get("desc", "")]
+		b.add_theme_stylebox_override("normal", UITheme.button_normal(Color(p["color"], 0.8)))
+		b.add_theme_stylebox_override("hover", UITheme.button_hover(p["color"].lightened(0.2)))
+		b.add_theme_stylebox_override("pressed", UITheme.button_pressed())
+		b.add_theme_stylebox_override("focus", UITheme.button_focus())
+		b.add_theme_stylebox_override("disabled", UITheme.button_normal(Color(0.12, 0.14, 0.2)))
+		b.pressed.connect(_choose.bind(p["id"]))
+		vb.add_child(b)
+		proxy_buttons[p["id"]] = b
+
 	progress = ProgressBar.new()
 	progress.custom_minimum_size = Vector2(0, 18)
 	progress.visible = false
@@ -118,8 +144,13 @@ func _build() -> void:
 
 
 func _refresh() -> void:
-	status_label.text = "Machine : %s — choisis un système" % item.get("name", "?")
+	status_label.text = "Machine : %s — choisis un système ou un proxy" % item.get("name", "?")
 	for b in buttons:
+		b.disabled = false
+	# Seules les licences ACHETÉES au shop sont installables.
+	for pid in proxy_buttons:
+		var b: Button = proxy_buttons[pid]
+		b.visible = GameManager.owns(str(pid))
 		b.disabled = false
 	progress.visible = false
 	progress.value = 0
@@ -143,9 +174,16 @@ func _choose(os_id: String) -> void:
 func _finish(os_id: String) -> void:
 	if not _installing:
 		return  # annulé (Échap) ou déjà terminé : le tween ne doit rien réinstaller
-	item["os"] = os_id
-	item["os_name"] = str(OSList.get_os(os_id).get("name", os_id))
-	status_label.text = "Système installé !"
+	# Un proxy (data/proxy_list.gd) OU un OS (data/os_list.gd) s'installe.
+	var proxy := ProxyList.get_proxy(os_id)
+	if not proxy.is_empty():
+		item["proxy"] = os_id
+		item["proxy_name"] = str(proxy.get("name", os_id))
+		status_label.text = "Reverse proxy installé !"
+	else:
+		item["os"] = os_id
+		item["os_name"] = str(OSList.get_os(os_id).get("name", os_id))
+		status_label.text = "Système installé !"
 	_installing = false
 	installed.emit(os_id)
 	visible = false

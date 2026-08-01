@@ -42,7 +42,8 @@ func _process(_delta: float) -> void:
 	# Un serveur vient de finir ? On rafraîchit les boutons.
 	var done := 0
 	for bay in bench.bays:
-		if not bay.get("item", {}).is_empty() and not bay.get("os_id", "").is_empty() \
+		if not bay.get("item", {}).is_empty() and (not bay.get("os_id", "").is_empty() \
+				or not bay.get("proxy_id", "").is_empty()) \
 				and not bay.get("installing", false):
 			done += 1
 	if done != _last_done:
@@ -186,14 +187,23 @@ func _bay_card(idx: int) -> Control:
 	elif not bay.get("os_id", "").is_empty():
 		status.text = "%s installé — prêt à être récupéré" % OSList.get_os(bay["os_id"]).get("name", bay["os_id"])
 		status.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
+	elif not bay.get("proxy_id", "").is_empty():
+		status.text = "%s installé — prêt à être récupéré (reverse proxy)" % ProxyList.get_proxy(bay["proxy_id"]).get("name", bay["proxy_id"])
+		status.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
 	elif bay.get("installing", false):
-		status.text = "Installation de %s… (les 2 baies tournent en parallèle)" % OSList.get_os(bay["pending_os"]).get("name", bay["pending_os"])
+		var pending: String = str(bay.get("pending_os", ""))
+		var pname: String = str(OSList.get_os(pending).get("name", pending))
+		if pending.is_empty():
+			var pp: String = str(bay.get("pending_proxy", ""))
+			pname = str(ProxyList.get_proxy(pp).get("name", pp))
+		status.text = "Installation de %s… (les 2 baies tournent en parallèle)" % pname
 		status.add_theme_color_override("font_color", Color(1.0, 0.75, 0.4))
 	else:
-		status.text = "Choisis un OS pour démarrer l'installation :"
+		status.text = "Choisis un OS ou un reverse proxy pour démarrer l'installation :"
 		status.add_theme_color_override("font_color", Color(0.8, 0.9, 1.0))
 
-	if not empty and not bay.get("installing", false) and bay.get("os_id", "").is_empty():
+	if not empty and not bay.get("installing", false) and bay.get("os_id", "").is_empty() \
+			and bay.get("proxy_id", "").is_empty():
 		# Choix de l'OS (une rangée de petits boutons)
 		var os_row := HBoxContainer.new()
 		os_row.add_theme_constant_override("separation", 8)
@@ -209,6 +219,33 @@ func _bay_card(idx: int) -> Control:
 			b.add_theme_stylebox_override("focus", UITheme.button_focus())
 			b.pressed.connect(install_requested.emit.bind(idx, os["id"]))
 			os_row.add_child(b)
+		# Reverse proxies : uniquement les licences ACHETÉES au shop. Ils sont
+		# dans une colonne SÉPARÉE sous la rangée OS : 3 OS + 3 proxies dans le
+		# même HBox débordaient du panneau (HBox ne wrap pas).
+		var owned_proxies: Array = []
+		for p in ProxyList.PROXIES:
+			if GameManager.owns(str(p["id"])):
+				owned_proxies.append(p)
+		if not owned_proxies.is_empty():
+			var proxy_col := VBoxContainer.new()
+			proxy_col.add_theme_constant_override("separation", 4)
+			info.add_child(proxy_col)
+			var plabel := Label.new()
+			plabel.text = "Reverse proxy (licence achetée) :"
+			plabel.add_theme_font_size_override("font_size", 11)
+			plabel.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
+			proxy_col.add_child(plabel)
+			for p in owned_proxies:
+				var pb := Button.new()
+				pb.text = "%s +%d" % [str(p["name"]).get_slice(" ", 0), int(p.get("clients", 0))]
+				pb.custom_minimum_size = Vector2(0, 34)
+				pb.add_theme_font_size_override("font_size", 12)
+				pb.add_theme_stylebox_override("normal", UITheme.button_normal(Color(p["color"], 0.8)))
+				pb.add_theme_stylebox_override("hover", UITheme.button_hover(p["color"].lightened(0.2)))
+				pb.add_theme_stylebox_override("pressed", UITheme.button_pressed())
+				pb.add_theme_stylebox_override("focus", UITheme.button_focus())
+				pb.pressed.connect(install_requested.emit.bind(idx, p["id"]))
+				proxy_col.add_child(pb)
 
 	if bay.get("installing", false):
 		var bar := ProgressBar.new()
@@ -218,7 +255,7 @@ func _bay_card(idx: int) -> Control:
 		info.add_child(bar)
 		_progress_bars.append({"bar": bar, "bay": idx})
 
-	if not empty and not bay.get("os_id", "").is_empty():
+	if not empty and (not bay.get("os_id", "").is_empty() or not bay.get("proxy_id", "").is_empty()):
 		var pick := Button.new()
 		pick.text = "Récupérer"
 		pick.custom_minimum_size = Vector2(130, 40)

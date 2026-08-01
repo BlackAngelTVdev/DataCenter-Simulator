@@ -37,7 +37,7 @@ func _ready() -> void:
 
 
 func _empty_bay() -> Dictionary:
-	return {"item": {}, "os_id": "", "pending_os": "", "installing": false, "progress": 0.0}
+	return {"item": {}, "os_id": "", "proxy_id": "", "pending_os": "", "pending_proxy": "", "installing": false, "progress": 0.0}
 
 
 func _process(delta: float) -> void:
@@ -48,7 +48,11 @@ func _process(delta: float) -> void:
 			if bay["progress"] >= 1.0:
 				bay["progress"] = 1.0
 				bay["installing"] = false
-				bay["os_id"] = bay.get("pending_os", "")
+				# Un OS OU un reverse proxy a fini de s'installer.
+				if not str(bay.get("pending_proxy", "")).is_empty():
+					bay["proxy_id"] = bay.get("pending_proxy", "")
+				else:
+					bay["os_id"] = bay.get("pending_os", "")
 				changed = true
 	if changed:
 		queue_redraw()
@@ -68,7 +72,9 @@ func place(item: Dictionary) -> bool:
 	bays[idx] = {
 		"item": item.duplicate(true),
 		"os_id": "",
+		"proxy_id": "",
 		"pending_os": "",
+		"pending_proxy": "",
 		"installing": false,
 		"progress": 0.0,
 	}
@@ -77,12 +83,18 @@ func place(item: Dictionary) -> bool:
 
 
 func start_install(idx: int, os_id: String) -> bool:
+	## Démarre l'installation d'un OS (data/os_list.gd) OU d'un reverse proxy
+	## (data/proxy_list.gd) sur la baie. Les deux se traitent pareil, la fin
+	## de l'installation range le choix dans le bon champ de la baie.
 	if idx < 0 or idx >= bays.size():
 		return false
 	var bay: Dictionary = bays[idx]
-	if bay.get("item", {}).is_empty() or not bay.get("os_id", "").is_empty():
+	if bay.get("item", {}).is_empty() or not bay.get("os_id", "").is_empty() \
+			or not bay.get("proxy_id", "").is_empty():
 		return false
-	bay["pending_os"] = os_id
+	var is_proxy := not ProxyList.get_proxy(os_id).is_empty()
+	bay["pending_proxy"] = os_id if is_proxy else ""
+	bay["pending_os"] = "" if is_proxy else os_id
 	bay["installing"] = true
 	bay["progress"] = 0.0
 	queue_redraw()
@@ -95,9 +107,13 @@ func pickup(idx: int) -> Dictionary:
 	var bay: Dictionary = bays[idx]
 	var it: Dictionary = bay.get("item", {}).duplicate(true)
 	var os_id: String = bay.get("os_id", "")
+	var proxy_id: String = bay.get("proxy_id", "")
 	if not os_id.is_empty():
 		it["os"] = os_id
 		it["os_name"] = str(OSList.get_os(os_id).get("name", os_id))
+	if not proxy_id.is_empty():
+		it["proxy"] = proxy_id
+		it["proxy_name"] = str(ProxyList.get_proxy(proxy_id).get("name", proxy_id))
 	bays[idx] = _empty_bay()
 	queue_redraw()
 	return it
@@ -114,11 +130,14 @@ func restore_bays(data: Variant) -> void:
 		bays[i] = {
 			"item": GameSave.restore_item(bd.get("item", {})),
 			"os_id": str(bd.get("os", "")),
+			"proxy_id": str(bd.get("proxy", "")),
 			"pending_os": str(bd.get("pending_os", bd.get("os", ""))),
+			"pending_proxy": str(bd.get("pending_proxy", bd.get("proxy", ""))),
 			"installing": false,
 			"progress": float(bd.get("progress", 0.0)),
 		}
-		if bays[i]["os_id"].is_empty() and not bays[i]["pending_os"].is_empty() \
+		if bays[i]["os_id"].is_empty() and bays[i]["proxy_id"].is_empty() \
+				and (not bays[i]["pending_os"].is_empty() or not bays[i]["pending_proxy"].is_empty()) \
 				and bays[i]["progress"] < 1.0:
 			bays[i]["installing"] = true
 	queue_redraw()
@@ -144,7 +163,7 @@ func _draw() -> void:
 		var led := "led_grey"
 		if bay.get("installing", false):
 			led = "led_orange"
-		elif not bay.get("os_id", "").is_empty():
+		elif not bay.get("os_id", "").is_empty() or not bay.get("proxy_id", "").is_empty():
 			led = "led_green"
 		var led_tex := BakedAssets.tex(led)
 		draw_texture(led_tex, Vector2(bx - led_tex.get_size().x / 2 + 6, -SIZE.y / 2 + 10 - led_tex.get_size().y / 2))
