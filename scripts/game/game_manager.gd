@@ -105,6 +105,10 @@ var total_clients := 0
 var income_per_sec := 0.0
 var heat_total := 0.0
 var online_servers := 0
+## Bande passante SUPPLÉMENTAIRE apportée par les reverse proxies EN LIGNE
+## du local courant (recalculé au tick par le garage). S'ajoute à la limite
+## de clients de l'abonnement : c'est comme ça qu'on dépasse 400 clients.
+var proxy_boost := 0
 
 ## --- Succès / trophées ---
 ## Succès débloqués (id -> true). Consultables dans le panneau Succès du PC.
@@ -158,6 +162,7 @@ func reset() -> void:
 	heat_total = 0.0
 	online_servers = 0
 	total_watts = 0
+	proxy_boost = 0
 	achievements = {}
 	servers_placed_total = 0
 	cats_seen = 0
@@ -200,8 +205,11 @@ func accept_contract(cid: String, name: String, income_per_month: int) -> void:
 
 func bandwidth_limit() -> int:
 	## Nombre max de clients en ligne simultanément (selon l'abonnement).
-	return int(ShopCatalog.get_abo(abo_id).get("clients", 8))  # Le pare-feu n'augmente PAS les revenus :
-	# il bloque les attaques DDoS (voir garage_scene._update_incidents).
+	## Les REVERSE PROXIES en ligne (proxy_boost, recalculé au tick par le
+	## garage) ajoutent de la bande passante PAR-DESSUS : c'est le moyen de
+	## dépasser la limite de l'abonnement dans le Data Hall. Le pare-feu,
+	## lui, n'augmente PAS les revenus : il bloque les attaques DDoS.
+	return int(ShopCatalog.get_abo(abo_id).get("clients", 8)) + proxy_boost
 
 
 func server_stopped(s: ServerUnit) -> bool:

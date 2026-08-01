@@ -10,6 +10,7 @@ const SIZE := Vector2(30, 22)
 
 var item: Dictionary = {}
 var os_id := ""
+var proxy_id := ""  # reverse proxy installé (data/proxy_list.gd) : la machine ne stocke plus de clients
 var cell := Vector2i.ZERO  # case de la grille (sauvegarde)
 var clients := 0
 var rack: RackUnit = null  # armoire dans laquelle il est monté (sinon null)
@@ -58,8 +59,26 @@ func _build_sprites() -> void:
 
 
 func configured() -> bool:
-	## Un OS a été installé : le serveur peut être câblé et encaisser.
-	return not os_id.is_empty()
+	## Un OS OU un reverse proxy a été installé : le serveur peut être câblé
+	## et encaisser (OS) ou servir de passerelle réseau (proxy).
+	return not os_id.is_empty() or not proxy_id.is_empty()
+
+
+func is_proxy() -> bool:
+	## Ce serveur exécute un REVERSE PROXY : il ne stocke pas de clients,
+	## il apporte de la bande passante supplémentaire au local (proxy_boost).
+	return not proxy_id.is_empty()
+
+
+func proxy_data() -> Dictionary:
+	return ProxyList.get_proxy(proxy_id)
+
+
+func bandwidth_boost() -> int:
+	## Clients en ligne EN PLUS apportés par ce proxy (0 si pas un proxy).
+	if not is_proxy():
+		return 0
+	return int(proxy_data().get("clients", 0))
 
 
 func os_data() -> Dictionary:
@@ -67,6 +86,10 @@ func os_data() -> Dictionary:
 
 
 func max_clients() -> int:
+	# Un REVERSE PROXY ne stocke AUCUN client : toute la machine est dédiée
+	# à faire passer le trafic des autres serveurs (bande passante en plus).
+	if is_proxy():
+		return 0
 	# L'OS définit le type d'offre : VPS (Proxmousse) multiplie les slots
 	# (beaucoup de petits clients), dédié (Deblon/Ouboutou) les garde tels quels.
 	var base := float(int(item.get("slots", 4))) * float(os_data().get("slot_mult", 1.0))
@@ -77,6 +100,10 @@ func max_clients() -> int:
 
 
 func income_per_sec() -> float:
+	# Un reverse proxy ne facture pas d'hébergement : il ne rapporte RIEN
+	# directement (son intérêt, c'est la bande passante pour les autres).
+	if is_proxy():
+		return 0.0
 	var mult := float(os_data().get("income_mult", 1.0))
 	# Partenariat constructeur : les clients paient MOINS sur cette machine.
 	mult *= ShopCatalog.income_multiplier(item)
@@ -84,6 +111,15 @@ func income_per_sec() -> float:
 
 
 func heat() -> float:
+	# Un reverse proxy chauffe aussi (c'est une machine qui travaille) : sa
+	# chaleur vient de la fiche du logiciel, pas de l'OS.
+	if is_proxy():
+		var h := float(proxy_data().get("heat", 0.5))
+		if rack != null and rack.has_battery():
+			h *= 0.7
+		if rack != null and rack.has_switch():
+			h *= (1.0 - rack.switch_heat_bonus())
+		return h
 	var mult := float(os_data().get("heat_mult", 1.0))
 	var h := float(item.get("heat", 1.0)) * mult
 	if rack != null and rack.has_battery():
@@ -95,7 +131,8 @@ func heat() -> float:
 
 
 func is_saturated() -> bool:
-	return configured() and clients >= max_clients()
+	# Un reverse proxy ne stocke AUCUN client (0/0) : jamais « SATURÉ ».
+	return configured() and not is_proxy() and clients >= max_clients()
 
 
 func _draw() -> void:
@@ -116,11 +153,20 @@ func _draw() -> void:
 		_led.position = Vector2(-SIZE.x / 2 + 6, -SIZE.y / 2 + 10)
 	if _bubble != null:
 		_bubble.visible = is_saturated() and rack == null and not broken
-	# Texte d'état : tag compact D (dédié) ou V (VPS) selon l'OS installé
+	# Texte d'état : tag compact D (dédié) / V (VPS) / P (proxy) selon l'OS installé
 	var font := ThemeDB.fallback_font
 	var label := "%d/%d" % [clients, max_clients()]
 	if not configured():
 		label = "SANS OS"
+	elif is_proxy():
+		# Un proxy peut aussi tomber en panne / être arrêté par un incident :
+		# on le signale (le monitor l'affiche pareil : « PROXY À L'ARRÊT »).
+		if broken:
+			label = "PROXY · PANNE"
+		elif stopped:
+			label = "PROXY · ARRÊT"
+		else:
+			label = "PROXY"
 	elif broken:
 		label = "PANNE"
 	elif stopped:
