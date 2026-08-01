@@ -20,6 +20,12 @@ const PET_COOLDOWN := 45.0
 ## en permanence, se balade et fait des pauses — il ne ressort plus.
 var adopted := false
 
+## Position de la gamelle (posée par garage_scene) : le chat adopté y va de
+## temps en temps pour MANGER — la gamelle se vide (GameManager.cat_fed = false).
+var bowl_pos := Vector2.ZERO
+## La gamelle vient d'être vidée par le chat (garage_scene rafraîchit l'affichage).
+signal bowl_emptied
+
 var _target := Vector2.ZERO
 var _life := 0.0
 var _leaving := false
@@ -31,6 +37,16 @@ var _sprite: Sprite2D
 var _pet_cooldown := 0.0
 var _heart: Sprite2D
 var _heart_tween: Tween
+
+## Faim : délai avant la prochaine envie de manger (secondes), puis phase
+## « va manger » (_going_eat : marche vers la gamelle) et « mange » (_eating :
+## figé, puis gamelle vidée). Booléen pour la phase de marche plutôt qu'un
+## sentinel numérique : la faim décroît à chaque frame et un compteur ne
+## resterait jamais au-dessus du seuil à l'arrivée.
+var _hunger := 30.0
+var _going_eat := false
+var _eating := false
+var _eat_left := 0.0
 
 
 func _ready() -> void:
@@ -61,6 +77,23 @@ func _process(delta: float) -> void:
 	# Le chat adopté ne part JAMAIS ; il fait même des pauses (il s'assoit).
 	if adopted:
 		_rest -= delta
+		# Faim : si la gamelle est pleine, le chat y va de temps en temps.
+		if not _eating and not _going_eat:
+			_hunger -= delta
+			if _hunger <= 0.0 and GameManager.cat_fed and bowl_pos != Vector2.ZERO:
+				_going_eat = true
+				_target = bowl_pos
+		# Il mange : figé devant la gamelle, puis il la vide.
+		if _eating:
+			_eat_left -= delta
+			_life += delta
+			if _eat_left <= 0.0:
+				_eating = false
+				GameManager.cat_fed = false
+				bowl_emptied.emit()
+				_hunger = _rng.randf_range(20.0, 60.0)
+				_pick_target()
+			return
 		if _rest > 0.0:
 			_life += delta
 			return
@@ -71,6 +104,12 @@ func _process(delta: float) -> void:
 		queue_free()
 		return
 	if not _leaving and position.distance_to(_target) < 8.0:
+		# Arrivé à la gamelle (en route pour manger) : il se met à manger.
+		if adopted and _going_eat and _target == bowl_pos:
+			_going_eat = false
+			_eating = true
+			_eat_left = 3.5
+			return
 		if adopted and _rng.randf() < 0.30:
 			_rest = _rng.randf_range(1.5, 4.5)
 			return
