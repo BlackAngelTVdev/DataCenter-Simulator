@@ -94,6 +94,8 @@ var deliveries: Array = []
 ## adopté (habitué du garage, il ne repart plus) ?
 var cat_fed := false
 var cat_adopted := false
+## Nombre total de caresses données au chat (succès « 50 000 caresses »).
+var cat_pets := 0
 
 ## Contrats clients signés via l'app Mail : {contract_id: {"name":…, "income_per_month":…}}.
 ## Revenus GARANTIS par mois (ajoutés au tick, indépendamment des serveurs).
@@ -156,6 +158,7 @@ func reset() -> void:
 	deliveries.clear()
 	cat_fed = false
 	cat_adopted = false
+	cat_pets = 0
 	contracts = {}
 	mails_seen = {}
 	total_clients = 0

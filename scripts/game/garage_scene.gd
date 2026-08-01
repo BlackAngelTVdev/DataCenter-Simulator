@@ -737,6 +737,16 @@ func _floor_prompt() -> String:
 	return ""
 
 
+func _nearest_cat(max_dist: float) -> GarageCat:
+	## Le chat (s'il est présent dans ce local) s'il est à portée. La caresse
+	## est PRIORITAIRE quand il est tout près : E la déclenche directement.
+	if not is_instance_valid(garage_cat):
+		return null
+	if player.global_position.distance_to(garage_cat.global_position) > max_dist:
+		return null
+	return garage_cat
+
+
 func _update_prompt() -> void:
 	# Serveur EN PANNE proche : prioritaire — on le prend pour l'établi.
 	if not player.is_carrying():
@@ -751,14 +761,20 @@ func _update_prompt() -> void:
 			hud.hide_prompt()
 		else:
 			hud.show_prompt(text)
+	# Caresse du chat : en dernier recours (le mobilier garde la priorité — si
+	# le chat passe devant une armoire, E ouvre l'armoire).
+	elif not player.is_carrying():
+		var cat := _nearest_cat(INTERACT_RANGE)
+		if cat != null:
+			hud.show_prompt("E — Caresser le chat" if cat.can_pet() else "Le chat se repose encore…")
+		else:
+			hud.hide_prompt()
 	elif player.is_carrying():
 		var text := _floor_prompt()
 		if text.is_empty():
 			hud.hide_prompt()
 		else:
 			hud.show_prompt(text)
-	else:
-		hud.hide_prompt()
 
 
 func _try_interact() -> void:
@@ -801,6 +817,13 @@ func _try_interact() -> void:
 				"bowl":
 					_bowl_interact()
 		return
+	# Caresse du chat : en dernier recours (mobilier prioritaire — le chat ne
+	# bloque jamais l'accès à une armoire, l'établi ou le PC).
+	if not player.is_carrying():
+		var cat := _nearest_cat(INTERACT_RANGE)
+		if cat != null:
+			_pet_cat(cat)
+			return
 	if player.is_carrying():
 		# Un serveur EN PANNE ne se pose pas « à l'établi » par E : on guide
 		# le joueur vers l'établi (la réparation s'y fait, ~2 min, slot occupé).
@@ -816,6 +839,21 @@ func _radio_toggle() -> void:
 		return
 	radio_unit.toggle()
 	hud.toast("Radio %s !" % ("éteinte" if not radio_unit.on else "allumée — le garage a de l'ambiance"))
+
+
+func _pet_cat(cat: GarageCat) -> void:
+	## Caresse le chat : +1 au compteur (succès « 50 000 caresses »). Le chat a
+	## un COOLDOWN (45 s) — impossible de caresser en boucle pour débloquer le
+	## succès rapidement. La vérification des succès se fait au tick ET ici.
+	if not cat.can_pet():
+		hud.toast("Le chat se repose encore… reviens dans un instant.")
+		return
+	cat.pet()
+	GameManager.cat_pets += 1
+	# Succès vérifié immédiatement (le tick le referait de toute façon).
+	for a in Achievements.check_all():
+		hud.toast("SUCCÈS DÉBLOQUÉ : %s — %s" % [a.get("name", "?"), a.get("desc", "")])
+	hud.toast("Le chat ronronne de plaisir ! (caresses : %d)" % GameManager.cat_pets)
 
 
 func _bowl_interact() -> void:
