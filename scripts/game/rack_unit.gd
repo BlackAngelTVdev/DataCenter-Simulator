@@ -93,6 +93,54 @@ func switch_heat_bonus() -> float:
 	return float(switch_item.get("quality", 0.0))
 
 
+func switch_ports() -> int:
+	## Nombre de PORTS RÉSEAU du switch installé (8 ou 24 selon le modèle).
+	return int(switch_item.get("ports", 8))
+
+
+func port_cost(server: ServerUnit) -> int:
+	## PORTS RÉSEAU consommés par un serveur monté (DATA HALL) : un nœud VPS
+	## (Proxmousse) multiplie les clients => il faut un lien agrégé (3 ports),
+	## un reverse proxy front le trafic (2 ports), un serveur dédié se contente
+	## d'un port. La règle ne s'applique QU'AU DATA HALL (garage : chill).
+	# Un serveur SANS OS ni proxy n'offre aucun service réseau : il ne
+	# consomme pas de port (défensif — un serveur nu ne peut de toute façon
+	# pas être posé dans un rack via le jeu).
+	if not server.configured():
+		return 0
+	if server.is_proxy():
+		return 2
+	if OSList.get_os(server.os_id).get("hosting", "dedicated") == "vps":
+		return 3
+	return 1
+
+
+func ports_used() -> int:
+	## Total des ports consommés par les serveurs montés dans l'armoire.
+	var n := 0
+	for s in mounted:
+		n += port_cost(s)
+	return n
+
+
+func port_exhausted_for(server: ServerUnit) -> bool:
+	## Le serveur monté est-il dans un rack dont le switch est SATURÉ en ports ?
+	## On attribue les ports dans l'ordre de montage : le premier serveur monté
+	## prend ses ports d'abord, et si le total dépasse la capacité du switch,
+	## les DERNIERS montés restent débranchés (pas de réseau = aucun revenu).
+	## Sans switch, on renvoie FALSE : la règle du switch manquant est gérée
+	## en amont (server_stopped) — ici on ne parle QUE de la saturation en ports.
+	if not has_switch():
+		return false
+	var used := 0
+	var cap := switch_ports()
+	for s in mounted:
+		if s == server:
+			return used + port_cost(s) > cap
+		used += port_cost(s)
+	return false
+
+
 func mount_battery(item_dict: Dictionary) -> bool:
 	if not has_free_battery_slot():
 		return false
