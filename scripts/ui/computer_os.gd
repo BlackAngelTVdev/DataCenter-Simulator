@@ -137,7 +137,10 @@ func _build_top_bar() -> void:
 
 
 func _update_clock() -> void:
-	clock_label.text = Time.get_time_string_from_system()
+	# Garde anti-crash : l'horloge tourne toutes les secondes — ne plus
+	# toucher clock_label s'il a été libéré entre-temps.
+	if is_instance_valid(clock_label):
+		clock_label.text = Time.get_time_string_from_system()
 
 
 func _menu_btn(text: String) -> Button:
@@ -263,8 +266,15 @@ func _build_toasts() -> void:
 	toast_timer = Timer.new()
 	toast_timer.wait_time = 2.5
 	toast_timer.one_shot = true
-	toast_timer.timeout.connect(func() -> void: toast_label.visible = false)
+	toast_timer.timeout.connect(_on_toast_timeout)
 	add_child(toast_timer)
+
+
+func _on_toast_timeout() -> void:
+	# Garde anti-crash : ne plus toucher toast_label s'il a été libéré
+	# (queue_free d'un parent) avant la fin du timer.
+	if is_instance_valid(toast_label):
+		toast_label.visible = false
 
 
 func _open_browser() -> void:

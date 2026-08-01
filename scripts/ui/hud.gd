@@ -53,8 +53,15 @@ func _build() -> void:
 	toast_timer = Timer.new()
 	toast_timer.wait_time = 3.0
 	toast_timer.one_shot = true
-	toast_timer.timeout.connect(func() -> void: toast_label.visible = false)
+	toast_timer.timeout.connect(_on_toast_timeout)
 	add_child(toast_timer)
+
+
+func _on_toast_timeout() -> void:
+	# Garde anti-crash : toast_label ne doit plus être touché s'il a été
+	# libéré (queue_free d'un parent) avant la fin du timer.
+	if is_instance_valid(toast_label):
+		toast_label.visible = false
 
 
 func show_prompt(text: String) -> void:

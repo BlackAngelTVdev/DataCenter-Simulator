@@ -108,9 +108,16 @@ func _build() -> void:
 	toast_timer = Timer.new()
 	toast_timer.wait_time = 2.0
 	toast_timer.one_shot = true
-	toast_timer.timeout.connect(func() -> void: toast_label.visible = false)
+	toast_timer.timeout.connect(_on_toast_timeout)
 	root_control.add_child(toast_timer)
 
 	options_panel = OptionsPanel.new()
 	options_panel.name = "Options"
 	add_child(options_panel)
+
+
+func _on_toast_timeout() -> void:
+	# Garde anti-crash : ne plus toucher toast_label s'il a été libéré
+	# (queue_free d'un parent) avant la fin du timer.
+	if is_instance_valid(toast_label):
+		toast_label.visible = false

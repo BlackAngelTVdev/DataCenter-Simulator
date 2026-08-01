@@ -124,6 +124,11 @@ func _row(label: String, value: String, value_color: Color = Color(1, 1, 1, 0.9)
 func _refresh() -> void:
 	if not visible:
 		return  # le Timer 0,5 s tourne en permanence : rien à refaire fermé
+	# AUTO-RÉPARATION : si le panneau a été libéré alors que le timer 0,5 s
+	# tournait encore (changement de scène), ne plus toucher aux widgets —
+	# même classe de crash « previously freed » qu'os_browser.
+	if not is_instance_valid(list_box):
+		return
 	for child in list_box.get_children():
 		child.queue_free()
 

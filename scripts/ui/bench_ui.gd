@@ -12,7 +12,7 @@ var root_control: Control
 var bench: BenchUnit
 var title_label: Label
 var list_box: VBoxContainer
-var _progress_bars: Array = []  # [{ "bar": ProgressBar, "bay": int }]
+var _progress_bars: Array[Dictionary] = []  # [{ "bar": ProgressBar, "bay": int }]
 var _last_done := 0
 
 
@@ -23,21 +23,31 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if visible and bench != null:
-		# Barres de progression pendant l'installation (en parallèle).
-		for entry in _progress_bars:
-			var bar: ProgressBar = entry["bar"]
-			var bay: Dictionary = bench.bays[int(entry["bay"])]
-			bar.value = bay.get("progress", 0.0) * 100.0
-		# Un serveur vient de finir ? On rafraîchit les boutons.
-		var done := 0
-		for bay in bench.bays:
-			if not bay.get("item", {}).is_empty() and not bay.get("os_id", "").is_empty() \
-					and not bay.get("installing", false):
-				done += 1
-		if done != _last_done:
-			_last_done = done
+	if not visible or not is_instance_valid(bench):
+		return
+	# AUTO-RÉPARATION : _refresh() recrée les cartes via queue_free, donc les
+	# ProgressBar référencées dans _progress_bars peuvent être libérées entre
+	# deux frames (même classe de crash « previously freed » qu'os_browser).
+	for entry in _progress_bars:
+		var bar: ProgressBar = entry["bar"]
+		if not is_instance_valid(bar):
+			_progress_bars.clear()
 			_refresh()
+			return
+	# Barres de progression pendant l'installation (en parallèle).
+	for entry in _progress_bars:
+		var bar: ProgressBar = entry["bar"]
+		var bay: Dictionary = bench.bays[int(entry["bay"])]
+		bar.value = bay.get("progress", 0.0) * 100.0
+	# Un serveur vient de finir ? On rafraîchit les boutons.
+	var done := 0
+	for bay in bench.bays:
+		if not bay.get("item", {}).is_empty() and not bay.get("os_id", "").is_empty() \
+				and not bay.get("installing", false):
+			done += 1
+	if done != _last_done:
+		_last_done = done
+		_refresh()
 
 
 func _input(event: InputEvent) -> void:
