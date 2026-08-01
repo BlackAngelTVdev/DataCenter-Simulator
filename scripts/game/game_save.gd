@@ -31,6 +31,7 @@ static func persist(garage: GarageScene) -> bool:
 		"owned": GameManager.owned.keys(),
 		"rack_limit": GameManager.rack_limit,
 		"clim_limit": GameManager.clim_limit,
+		"bench_job": GameManager.bench_job.duplicate(true),
 		"location": GameManager.location,
 		"location_unlocked": GameManager.location_unlocked,
 		"deliveries": GameManager.deliveries.duplicate(true),
@@ -97,6 +98,18 @@ static func load_into(garage: GarageScene) -> void:
 	GameManager.owned[GameManager.abo_id] = true
 	GameManager.rack_limit = int(data.get("rack_limit", 3))
 	GameManager.clim_limit = int(data.get("clim_limit", 6))
+	# Travail en cours à l'établi du garage (installation/réparation) : il
+	# reprend après un rechargement — le travail continue en arrière-plan.
+	GameManager.bench_job = {}
+	var bj: Variant = data.get("bench_job", {})
+	if typeof(bj) == TYPE_DICTIONARY and not (bj as Dictionary).is_empty():
+		var jd: Dictionary = bj
+		GameManager.bench_job = {
+			"mode": str(jd.get("mode", "")),
+			"os_id": str(jd.get("os_id", "")),
+			"seconds_left": float(jd.get("seconds_left", 0.0)),
+			"item": restore_item(jd.get("item", {})),
+		}
 	GameManager.location = int(data.get("location", 0))
 	GameManager.location_unlocked = bool(data.get("location_unlocked", false))
 	GameManager.cat_fed = bool(data.get("cat_fed", false))
