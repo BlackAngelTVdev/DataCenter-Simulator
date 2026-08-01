@@ -31,7 +31,7 @@ static func persist(garage: GarageScene) -> bool:
 		"owned": GameManager.owned.keys(),
 		"rack_limit": GameManager.rack_limit,
 		"clim_limit": GameManager.clim_limit,
-		"bench_job": GameManager.bench_job.duplicate(true),
+		"bench_job": GameManager.bench_job.duplicate(true),  # le serveur reste posé sur l'établi
 		"location": GameManager.location,
 		"location_unlocked": GameManager.location_unlocked,
 		"deliveries": GameManager.deliveries.duplicate(true),
@@ -109,6 +109,7 @@ static func load_into(garage: GarageScene) -> void:
 			"os_id": str(jd.get("os_id", "")),
 			"seconds_left": float(jd.get("seconds_left", 0.0)),
 			"item": restore_item(jd.get("item", {})),
+			"done": bool(jd.get("done", false)),
 		}
 	GameManager.location = int(data.get("location", 0))
 	GameManager.location_unlocked = bool(data.get("location_unlocked", false))

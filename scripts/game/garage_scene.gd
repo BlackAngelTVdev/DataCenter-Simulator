@@ -540,6 +540,7 @@ func _build_ui() -> void:
 	install_ui = OSInstallUI.new()
 	install_ui.name = "OSInstallUI"
 	install_ui.started.connect(_on_install_started)
+	install_ui.pick_up_requested.connect(_on_bench_pick_up)
 	add_child(install_ui)
 
 	rack_ui = RackUI.new()
@@ -686,12 +687,15 @@ func _nearest_interactable(max_dist: float) -> Node:
 			# à CE local (chaque hangar reçoit ses propres commandes).
 			if it.kind == "delivery" and _deliveries_here() == 0:
 				continue
-			# L'établi du garage sert pour un serveur SANS OS OU EN PANNE :
+			# L'établi du garage sert pour un serveur SANS OS OU EN PANNE, OU
+			# pour suivre/récupérer un travail en cours (mains vides + job actif) :
 			# sinon il bloquerait la pose (le joueur resterait « coincé »).
 			if it.kind == "bench":
 				var carried := player.carried_item
-				if not (player.is_carrying() and carried.get("kind", "") == "server" \
-						and (carried.get("broken", false) or (not carried.has("os") and not carried.has("proxy")))):
+				var can_start: bool = player.is_carrying() and carried.get("kind", "") == "server" \
+						and (carried.get("broken", false) or (not carried.has("os") and not carried.has("proxy")))
+				var can_follow := not player.is_carrying() and install_ui.busy()
+				if not can_start and not can_follow:
 					continue
 			# Le bureau ne doit pas voler la priorité sur la pose : si le joueur
 			# porte un objet plaçable, E pose — il ira voir les factures plus tard.
@@ -735,6 +739,12 @@ func _prompt_for(it: Node) -> String:
 			"computer":
 				return "E — S'asseoir à l'ordinateur"
 			"bench":
+				if install_ui.busy() and not player.is_carrying():
+					# Un travail tourne sur l'établi : on propose de le suivre ou de
+					# récupérer le serveur une fois terminé.
+					if bool(GameManager.bench_job.get("done", false)):
+						return "E — Récupérer le serveur sur l'établi"
+					return "E — Suivre la réparation/installation"
 				if player.is_carrying():
 					var item := player.carried_item
 					if item.get("kind", "") == "server" and item.get("broken", false):
@@ -985,16 +995,19 @@ func _refresh_bowl_food() -> void:
 
 
 func _bench_interact() -> void:
-	# Un travail tourne déjà sur l'établi du garage : il continue TOUT SEUL en
-	# arrière-plan (GameManager.bench_job) — on ne peut pas en lancer un second
-	# (le slot reste occupé jusqu'à la fin).
+	# Un travail tourne déjà sur l'établi du garage : revenir à l'établi + E
+	# affiche la PROGRESSION (ou le bouton Récupérer une fois terminé) — le
+	# serveur reste posé sur l'établi, les mains du joueur sont libres.
 	if install_ui.busy():
-		hud.toast("L'établi est occupé — l'installation/réparation en cours continue toute seule (un toast te préviendra).")
+		if bool(GameManager.bench_job.get("done", false)):
+			install_ui.open_ready()
+		else:
+			install_ui.open_progress()
 		return
 	if player.is_carrying():
 		var item := player.carried_item
 		# Un serveur EN PANNE s'ouvre aussi à l'établi : mode RÉPARATION
-		# (prix du marché, ~2 min, l'établi est occupé pendant ce temps).
+		# (prix du marché, ~2 min, le serveur restera posé sur l'établi).
 		if item.get("kind", "") == "server" and (item.get("broken", false) \
 				or (not item.has("os") and not item.has("proxy"))):
 			install_ui.open(item)
@@ -2277,37 +2290,45 @@ func _online_servers() -> int:
 
 
 func _on_install_started(text: String) -> void:
-	## Le travail démarre à l'établi du garage : le panneau s'est fermé, on
-	## prévient que ça tourne en arrière-plan (le joueur peut vaquer à ses
-	## occupations).
+	## Le travail démarre à l'établi du garage : le serveur RESTE POSÉ sur
+	## l'établi (les mains sont libérées), le panneau est fermé et le travail
+	## continue en arrière-plan — le joueur peut vaquer à ses occupations.
+	player.carried_item = {}
+	queue_redraw()
 	hud.toast(text)
 
 
 func _process_bench_job() -> void:
 	## Travail à l'établi du GARAGE (GameManager.bench_job) : le temps défile
 	## (1 tick = 1 s), même si on est dans l'AUTRE local (les deux locaux
-	## partagent ce script). À la fin, le résultat s'applique au serveur porté
-	## et un toast prévient — on n'est jamais bloqué devant l'établi.
+	## partagent ce script). Le serveur RESTE POSÉ sur l'établi — à la fin, le
+	## job passe à « done » (le serveur est prêt à être récupéré) et un toast
+	## prévient. On n'est jamais bloqué devant l'établi.
 	if GameManager.bench_job.is_empty():
 		return
+	if bool(GameManager.bench_job.get("done", false)):
+		return  # terminé, en attente de récupération — le temps ne défile plus
 	GameManager.bench_job["seconds_left"] = float(GameManager.bench_job.get("seconds_left", 0.0)) - 1.0
 	if float(GameManager.bench_job.get("seconds_left", 0.0)) <= 0.0:
 		_finish_bench_job()
+	else:
+		queue_redraw()  # la barre de progression sur l'établi avance
 
 
 func _finish_bench_job() -> void:
 	## Fin du travail à l'établi du garage : le résultat (OS installé OU
-	## serveur réparé) s'applique au serveur porté (le job garde sa référence).
+	## serveur réparé) s'applique au serveur posé sur l'établi, qui reste là
+	## jusqu'à ce que le joueur revienne le récupérer (E puis Récupérer).
 	var job: Dictionary = GameManager.bench_job
-	GameManager.bench_job = {}
 	var mode := str(job.get("mode", ""))
 	var item: Dictionary = job.get("item", {})
 	if item.is_empty():
+		GameManager.bench_job = {}
 		return
 	if mode == "repair":
 		item["broken"] = false
 		item["wear"] = clampf(float(item.get("wear", 0.0)) * 0.3, 0.0, 1.0)
-		hud.toast("Serveur réparé ! Remonte-le en armoire (E puis clic sur une baie) pour relancer les revenus.")
+		hud.toast("Serveur réparé ! Reviens à l'établi (E) pour le récupérer et le remonter en armoire.")
 	else:
 		var os_id := str(job.get("os_id", ""))
 		var proxy := ProxyList.get_proxy(os_id)
@@ -2317,29 +2338,30 @@ func _finish_bench_job() -> void:
 		else:
 			item["os"] = os_id
 			item["os_name"] = str(OSList.get_os(os_id).get("name", os_id))
-		hud.toast("Logiciel installé ! Maintenant pose le serveur dans le garage (E).")
-	# Après une sauvegarde/rechargement, le serveur porté et celui du job sont
-	# deux dicts distincts mais identiques : on resynchronise la main. PAS de
-	# comparaison profonde (carried != item) ici : après un reload les deux
-	# dicts sont égaux en contenu mais pas la même référence — on applique
-	# donc toujours les clés (no-op sans danger si c'est le même objet).
-	var carried := player.carried_item
-	if carried.get("kind", "") == "server" and str(carried.get("id", "")) == str(item.get("id", "")):
-		for key in item:
-			carried[key] = item[key]
-	# Cas 2 : le serveur n'est plus porté (déposé sur l'étagère pendant le
-	# travail, ou le joueur tient un AUTRE serveur). Le job garde la référence
-	# du dict d'origine, devenue orpheline après le duplicate() du dépôt : on
-	# applique le résultat à la copie de l'étagère (même id) pour ne pas perdre
-	# la réparation/l'OS.
-	elif storage_unit != null:
-		for i in range(storage_unit.items.size()):
-			var it: Dictionary = storage_unit.items[i]
-			if it.get("kind", "") == "server" and str(it.get("id", "")) == str(item.get("id", "")):
-				for key in item:
-					it[key] = item[key]
-				storage_unit.queue_redraw()
-				break
+		hud.toast("Logiciel installé ! Reviens à l'établi (E) pour récupérer le serveur.")
+	job["done"] = true
+	queue_redraw()
+
+
+func _on_bench_pick_up() -> void:
+	## « Récupérer » dans le panneau de l'établi : le serveur terminé quitte
+	## l'établi et revient dans les mains du joueur (le job est vidé, l'établi
+	## est libre pour un nouveau travail).
+	if GameManager.bench_job.is_empty():
+		return
+	if player.is_carrying():
+		hud.toast("Dépose d'abord ce que tu portes !")
+		return
+	var item: Dictionary = GameManager.bench_job.get("item", {})
+	if item.is_empty():
+		GameManager.bench_job = {}
+		install_ui.close()
+		return
+	player.carried_item = item.duplicate(true)
+	GameManager.bench_job = {}
+	install_ui.close()
+	queue_redraw()
+	hud.toast("%s récupéré ! Installe-le en armoire (E puis clic sur une baie) ou pose-le au sol." % item.get("name", "Serveur"))
 
 
 func _on_bay_finished(bay: int, is_repair: bool) -> void:
@@ -2509,3 +2531,30 @@ func _draw() -> void:
 	# les cases valides passent en vert léger et la case survolée se marque.
 	if player != null and _carried_placable():
 		_draw_placement_overlay(player.carried_item)
+	# Serveur POSÉ sur l'établi du garage + barre de progression pendant un
+	# travail (installation/réparation) : on le voit sur place, mains libres.
+	if location_id == 0 and not GameManager.bench_job.is_empty():
+		_draw_bench_job_visual()
+
+
+func _draw_bench_job_visual() -> void:
+	## Dessine le serveur posé sur l'établi du garage et sa barre de progression
+	## (le job vit dans GameManager.bench_job, global — visible dans les deux
+	## locaux, mais l'établi n'existe qu'au garage).
+	var job: Dictionary = GameManager.bench_job
+	var it: Dictionary = job.get("item", {})
+	var pos := _cell_center(_loc_bench_cell())
+	var col: Color = it.get("color", Color(0.5, 0.5, 0.6))
+	# Petit bloc serveur posé sur l'établi (texture cuite teintée)
+	draw_texture_rect(BakedAssets.tex("block"), Rect2(pos + Vector2(-16, -14), Vector2(32, 22)), false, col)
+	# Barre de progression sous le serveur (pleine quand done)
+	var mode := str(job.get("mode", ""))
+	var total := GameManager.BENCH_REPAIR_SECONDS if mode == "repair" else GameManager.BENCH_INSTALL_SECONDS
+	var left := float(job.get("seconds_left", total))
+	var p := clampf(1.0 - left / total, 0.0, 1.0)
+	if bool(job.get("done", false)):
+		p = 1.0
+	var bw := 44.0
+	draw_rect(Rect2(pos.x - bw / 2, pos.y + 14, bw, 5), Color(0, 0, 0, 0.6))
+	var fill := Color(0.95, 0.5, 0.25) if mode == "repair" else Color(0.3, 0.85, 0.5)
+	draw_rect(Rect2(pos.x - bw / 2, pos.y + 14, bw * p, 5), fill)
