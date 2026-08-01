@@ -1,18 +1,17 @@
 class_name OSInstallUI
 extends CanvasLayer
-## Popup de l'ÉTABLI du garage : soit installer un OS (Deblon / Ouboutou /
+## Popup de l'ÉTABLI du garage : installer un OS (Deblon / Ouboutou /
 ## Proxmousse) ou un reverse proxy sur le serveur PORTÉ, soit RÉPARER un
-## serveur EN PANNE au prix du marché (~2 min — l'établi est occupé pendant
-## ce temps, comme les baies du Data Hall).
+## serveur EN PANNE au prix du marché (~2 min). Dès qu'on clique, le panneau
+## se FERME et le travail continue TOUT SEUL en arrière-plan (traité au tick
+## par le garage via GameManager.bench_job) : le joueur peut vaquer à ses
+## occupations — l'établi reste occupé (slot bloqué) jusqu'à la fin, et un
+## toast prévient quand c'est terminé.
 
-signal installed(os_id: String)
-signal repaired
-
-const REPAIR_TIME := 120.0  # réparation d'un serveur en panne : ~2 min
+signal started(text: String)  # le travail démarre (toast d'info du garage)
 
 var root_control: Control
 var item: Dictionary = {}
-var progress: ProgressBar
 var status_label: Label
 var buttons: Array[Button] = []
 var proxy_buttons := {}  # id du proxy -> Button (licences possédées visibles)
@@ -20,12 +19,9 @@ var hint: Label
 var proxy_hint: Label
 var repair_button: Button
 var cancel_button: Button
-var _installing := false
-var _repairing := false
 
 
 func _ready() -> void:
-	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build()
 	visible = false
 
@@ -33,16 +29,18 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	if visible and event is InputEventKey and event.pressed \
 			and not event.echo and event.keycode == KEY_ESCAPE:
-		if _repairing:
-			return  # l'établi est occupé : la réparation continue
 		close()
 		get_viewport().set_input_as_handled()
 
 
+func busy() -> bool:
+	## Un travail (installation ou réparation) est-il en cours ? L'établi est
+	## occupé : on ne peut pas en lancer un second.
+	return not GameManager.bench_job.is_empty()
+
+
 func open(server_item: Dictionary) -> void:
 	item = server_item
-	_installing = false  # réinitialise toujours (peut être réouvert après un annul)
-	_repairing = false
 	# Force la taille plein écran (le Control caché ne reçoit pas de re-layout).
 	root_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root_control.visible = true
@@ -51,10 +49,8 @@ func open(server_item: Dictionary) -> void:
 
 
 func close() -> void:
-	if _repairing:
-		return  # l'établi est occupé tant que la réparation tourne
+	## Ferme TOUJOURS : un travail déjà lancé continue en arrière-plan.
 	visible = false
-	_installing = false
 
 
 func _build() -> void:
@@ -143,7 +139,7 @@ func _build() -> void:
 		proxy_buttons[p["id"]] = b
 
 	# RÉPARATION d'un serveur EN PANNE (visible uniquement pour un serveur
-	# broken) : prix au MARCHÉ, ~2 min, l'établi est occupé pendant ce temps.
+	# broken) : prix au MARCHÉ, ~2 min — le travail continue après fermeture.
 	repair_button = Button.new()
 	repair_button.custom_minimum_size = Vector2(0, 56)
 	repair_button.add_theme_font_size_override("font_size", 16)
@@ -155,11 +151,6 @@ func _build() -> void:
 	repair_button.pressed.connect(_start_repair)
 	repair_button.visible = false
 	vb.add_child(repair_button)
-
-	progress = ProgressBar.new()
-	progress.custom_minimum_size = Vector2(0, 18)
-	progress.visible = false
-	vb.add_child(progress)
 
 	cancel_button = UIHelpers.make_button("Annuler", false, Vector2(0, 44))
 	cancel_button.pressed.connect(close)
@@ -176,7 +167,7 @@ func _refresh() -> void:
 	var broken := bool(item.get("broken", false))
 	if broken:
 		# Mode RÉPARATION : on masque l'installation, on propose le prix marché.
-		status_label.text = "Serveur EN PANNE — réparation au prix du marché (~2 min, l'établi est occupé)"
+		status_label.text = "Serveur EN PANNE — réparation au prix du marché (~2 min, l'établi sera occupé)"
 		status_label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.4))
 		hint.visible = false
 		proxy_hint.visible = false
@@ -188,9 +179,6 @@ func _refresh() -> void:
 		repair_button.visible = true
 		repair_button.text = "Réparer (%d $)" % cost
 		repair_button.disabled = GameManager.cash < cost
-		cancel_button.disabled = _repairing
-		progress.visible = false
-		progress.value = 0
 		return
 	# Mode INSTALLATION normal.
 	status_label.text = "Machine : %s — choisis un système ou un proxy" % item.get("name", "?")
@@ -206,71 +194,38 @@ func _refresh() -> void:
 		b.visible = GameManager.owns(str(pid))
 		b.disabled = false
 	repair_button.visible = false
-	cancel_button.disabled = false
-	progress.visible = false
-	progress.value = 0
 
 
 func _choose(os_id: String) -> void:
-	if _installing or _repairing:
+	if busy():
 		return
-	_installing = true
-	for b in buttons:
-		b.disabled = true
+	# Le travail démarre : on FERME le panneau — le joueur peut vaquer à ses
+	# occupations, l'établi reste occupé jusqu'à la fin de l'installation.
 	var os := OSList.get_os(os_id)
-	status_label.text = "Installation de %s…" % os.get("name", os_id)
-	progress.visible = true
-	progress.value = 0
-	var tw := create_tween()
-	tw.tween_property(progress, "value", 100.0, 1.2)
-	tw.tween_callback(_finish.bind(os_id))
-
-
-func _finish(os_id: String) -> void:
-	if not _installing:
-		return  # annulé (Échap) ou déjà terminé : le tween ne doit rien réinstaller
-	# Un proxy (data/proxy_list.gd) OU un OS (data/os_list.gd) s'installe.
-	var proxy := ProxyList.get_proxy(os_id)
-	if not proxy.is_empty():
-		item["proxy"] = os_id
-		item["proxy_name"] = str(proxy.get("name", os_id))
-		status_label.text = "Reverse proxy installé !"
-	else:
-		item["os"] = os_id
-		item["os_name"] = str(OSList.get_os(os_id).get("name", os_id))
-		status_label.text = "Système installé !"
-	_installing = false
-	installed.emit(os_id)
+	GameManager.bench_job = {
+		"mode": "install",
+		"os_id": os_id,
+		"seconds_left": GameManager.BENCH_INSTALL_SECONDS,
+		"item": item,  # référence : la mutation de fin s'applique au serveur porté
+	}
 	visible = false
+	started.emit("Installation de %s en cours… (l'établi est occupé — vaque à tes occupations, un toast te préviendra)" % os.get("name", os_id))
 
 
 func _start_repair() -> void:
-	if _repairing:
+	if busy():
 		return
 	var cost := ShopCatalog.repair_price(item)
 	if GameManager.cash < cost:
 		return  # le bouton est disabled, mais double sécurité
 	GameManager.cash -= cost
-	_repairing = true
-	repair_button.visible = false
-	cancel_button.disabled = true
-	status_label.text = "Réparation en cours… (~2 min, l'établi est occupé)"
-	status_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.4))
-	progress.visible = true
-	progress.value = 0
-	var tw := create_tween()
-	tw.tween_property(progress, "value", 100.0, REPAIR_TIME)
-	tw.tween_callback(_finish_repair)
-
-
-func _finish_repair() -> void:
-	if not _repairing:
-		return  # annulé ou déjà terminé
-	# Le serveur est réparé : la panne disparaît, l'usure retombe (comme
-	# l'ancienne maintenance instantanée) — prêt à être remonté en armoire.
-	item["broken"] = false
-	item["wear"] = clampf(float(item.get("wear", 0.0)) * 0.3, 0.0, 1.0)
-	_repairing = false
-	status_label.text = "Serveur réparé !"
-	repaired.emit()
+	# Le travail démarre : on FERME le panneau — le joueur peut vaquer à ses
+	# occupations, l'établi reste occupé ~2 min (slot bloqué).
+	GameManager.bench_job = {
+		"mode": "repair",
+		"os_id": "",
+		"seconds_left": GameManager.BENCH_REPAIR_SECONDS,
+		"item": item,  # référence : la mutation de fin s'applique au serveur porté
+	}
 	visible = false
+	started.emit("Réparation en cours… (~2 min, l'établi est occupé — vaque à tes occupations, un toast te préviendra)")
