@@ -246,8 +246,6 @@ func _render_shop() -> void:
 	var clims: Array = []
 	var locals: Array = []
 	var upgrades: Array = []
-	var abos: Array = []
-	var goodies: Array = []
 	var decos: Array = []
 	var proxies: Array = []
 	for item in ShopCatalog.shop_items():
@@ -261,8 +259,6 @@ func _render_shop() -> void:
 			"clim": clims.append(item)
 			"local": locals.append(item)
 			"upgrade": upgrades.append(item)
-			"abo": abos.append(item)
-			"catfood": goodies.append(item)
 			"decor":
 				# Les ACCESSOIRES POUR CHAT (cat_spot) vivent sur la page NEUF :
 				# ils ne s'affichent pas dans la déco de Tech'Occase.
@@ -320,9 +316,6 @@ func _render_shop() -> void:
 	page_box.add_child(local_hint)
 	for item in locals:
 		page_box.add_child(_card(item))
-	page_box.add_child(_section_title("Abonnements Internet"))
-	for item in abos:
-		page_box.add_child(_card(item))
 	if not proxies.is_empty():
 		page_box.add_child(_section_title("Logiciels réseau (reverse proxy)"))
 		var proxy_hint := Label.new()
@@ -333,17 +326,6 @@ func _render_shop() -> void:
 		page_box.add_child(proxy_hint)
 		for item in proxies:
 			page_box.add_child(_card(item))
-	if not goodies.is_empty():
-		page_box.add_child(_section_title("Vie du garage"))
-		var goodie_hint := Label.new()
-		goodie_hint.text = "Verse la nourriture dans la GAMELLE (à côté de l'étagère) pour adopter le chat du garage."
-		goodie_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		goodie_hint.add_theme_font_size_override("font_size", 12)
-		goodie_hint.add_theme_color_override("font_color", Color(1.0, 0.85, 0.6))
-		page_box.add_child(goodie_hint)
-		for item in goodies:
-			page_box.add_child(_card(item))
-
 	if not decos.is_empty():
 		page_box.add_child(_section_title("Déco du garage"))
 		var decor_hint := Label.new()
@@ -484,6 +466,22 @@ func _render_neuf_shop() -> void:
 	cat_hint.add_theme_color_override("font_color", Color(1.0, 0.85, 0.6))
 	page_box.add_child(cat_hint)
 	for item in ShopCatalog.CAT_STUFF:
+		page_box.add_child(_card(item))
+
+	# --- Abonnements Internet : du NEUF, pas de l'occasion ---
+	page_box.add_child(_section_title("Abonnements Internet"))
+	for item in ShopCatalog.ABOS:
+		page_box.add_child(_card(item))
+
+	# --- Vie du garage : la nourriture pour chat est du neuf aussi ---
+	page_box.add_child(_section_title("Vie du garage"))
+	var goodie_hint := Label.new()
+	goodie_hint.text = "Verse la nourriture dans la GAMELLE (à côté de l'étagère) pour adopter le chat du garage."
+	goodie_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	goodie_hint.add_theme_font_size_override("font_size", 12)
+	goodie_hint.add_theme_color_override("font_color", Color(1.0, 0.85, 0.6))
+	page_box.add_child(goodie_hint)
+	for item in ShopCatalog.GOODIES:
 		page_box.add_child(_card(item))
 
 	if GameManager.location != 1:
