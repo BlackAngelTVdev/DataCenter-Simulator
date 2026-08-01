@@ -6,7 +6,7 @@ extends StaticBody2D
 ## delivery / car) ; l'étiquette reste un texte dessiné. La voiture (kind
 ## "car") ouvre le menu des lieux (TravelUI) — clic ou E.
 
-var kind := "generic"  # "computer" | "bench" | "delivery" | "car" | "desk"
+var kind := "generic"  # "computer" | "bench" | "delivery" | "car" | "desk" | "assembly"
 var label := ""
 var box_size := Vector2(36, 30)
 var body_color := Color(0.4, 0.45, 0.55)
@@ -37,6 +37,10 @@ func _ready() -> void:
 			tex_name = "desk"
 		"bowl":
 			tex_name = "bowl"
+		"assembly":
+			# Table d'assemblage (Data Hall) : réutilise le visuel de l'établi
+			# Pro (un plan de travail) — pas de nouvelle texture à cuire.
+			tex_name = "bench_pro"
 	if not tex_name.is_empty():
 		_body = Sprite2D.new()
 		_body.texture = BakedAssets.tex(tex_name)

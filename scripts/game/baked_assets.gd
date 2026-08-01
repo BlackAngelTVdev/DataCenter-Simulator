@@ -64,7 +64,11 @@ static func _blank() -> Texture2D:
 
 static func server_tex(item: Dictionary) -> Texture2D:
 	var t := tex("server_" + str(item.get("id", "")))
-	return t if t != null else tex("block")
+	# Serveur NEUF (assemblé, configurateur — id "server_neuf") : pas de
+	# texture dédiée, on retombe sur le serveur Panda générique.
+	if t == null or t.get_width() <= 8:
+		t = tex("server_panda")
+	return t
 
 
 static func rack_tex(item: Dictionary) -> Texture2D:
@@ -87,7 +91,10 @@ static func item_tex(item: Dictionary) -> Texture2D:
 	var kind := str(item.get("kind", ""))
 	match kind:
 		"server":
-			return tex("server_" + str(item.get("id", "")))
+			# Réutilise server_tex : le serveur NEUF (server_neuf) n'a pas de
+			# texture dédiée et retombe sur le Panda générique (pas de bloc
+			# magenta dans les UI de revente / armoire).
+			return server_tex(item)
 		"furniture":
 			return tex("rack_" + str(item.get("id", "")))
 		"clim":
@@ -96,4 +103,7 @@ static func item_tex(item: Dictionary) -> Texture2D:
 			return tex("decor_" + str(item.get("id", "")))
 		"switch":
 			return tex("switch_" + str(item.get("id", "")))
+		"kit":
+			# Kit serveur neuf : icône colis (il arrive par la livraison).
+			return tex("parcel")
 	return tex("block")
