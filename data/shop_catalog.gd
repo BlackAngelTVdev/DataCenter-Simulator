@@ -432,6 +432,8 @@ static func is_partner(server_id: String) -> bool:
 const MARKET_DAY_SECONDS := 300.0
 const MARKET_MIN := 0.7
 const MARKET_MAX := 1.5
+## Coût de RÉPARATION d'un serveur en panne : % du prix du marché du jour.
+const REPAIR_RATIO := 0.3
 
 
 static func market_day() -> int:
@@ -463,6 +465,13 @@ static func buy_price(item: Dictionary) -> int:
 		if not p.is_empty() and is_partner(str(item.get("id", ""))):
 			price = int(round(float(price) * (1.0 - float(p.get("buy_discount", 0.0)))))
 	return price
+
+
+static func repair_price(item: Dictionary) -> int:
+	## Coût de réparation d'un serveur EN PANNE, au prix du MARCHÉ du jour
+	## (les pièces coûtent plus cher quand le marché monte — même logique que
+	## buy_price / resale_value). Jamais gratuit.
+	return maxi(10, int(round(float(market_price(item)) * REPAIR_RATIO)))
 
 
 static func income_multiplier(item: Dictionary) -> float:
