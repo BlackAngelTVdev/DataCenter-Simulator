@@ -9,7 +9,7 @@ extends RefCounted
 ##
 ##  Champs :
 ##    id      : identifiant du local (0 = garage DC-1, 1 = Local 2…)
-##              ⚠ DOIT correspondre à l'@export location_id de la scène.
+##              DOIT correspondre à l'@export location_id de la scène.
 ##    name    : nom affiché dans le menu voiture
 ##    desc    : description affichée
 ##    scene   : scène à charger (res://scenes/game/…)

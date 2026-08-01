@@ -65,7 +65,7 @@ func _build() -> void:
 	panel.add_child(vb)
 
 	var title := Label.new()
-	title.text = "📄 FACTURES & FINANCES"
+	title.text = "FACTURES & FINANCES"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 26)
 	title.add_theme_color_override("font_color", Color(0.72, 0.9, 1.0))
@@ -133,7 +133,7 @@ func _refresh() -> void:
 		child.queue_free()
 
 	# Revenus
-	_section("💶 REVENUS", Color(0.5, 1.0, 0.6))
+	_section("REVENUS", Color(0.5, 1.0, 0.6))
 	var abo := ShopCatalog.get_abo(GameManager.abo_id)
 	var bw := GameManager.bandwidth_limit()
 	var income := GameManager.income_per_sec
@@ -143,7 +143,7 @@ func _refresh() -> void:
 	_row("Abonnement", str(abo.get("name", "—")))
 
 	# Électricité
-	_section("⚡ ÉLECTRICITÉ", Color(1.0, 0.85, 0.5))
+	_section("ÉLECTRICITÉ", Color(1.0, 0.85, 0.5))
 	var watts := GameManager.total_watts
 	var elec := GameManager.electric_cost_per_sec()
 	_row("Consommation", "%d W" % watts)
@@ -151,28 +151,28 @@ func _refresh() -> void:
 	_row("Coût", "-%.2f $/h" % (elec * 3600.0), Color(1.0, 0.6, 0.5))
 
 	# Connexion
-	_section("🌐 CONNEXION", Color(0.5, 0.85, 1.0))
+	_section("CONNEXION", Color(0.5, 0.85, 1.0))
 	var fee := GameManager.abo_fee_per_sec()
 	_row("Mensualité fibre", "-%.2f $/h" % (fee * 3600.0), Color(1.0, 0.6, 0.5))
 	_row("Bande passante", "%d clients max" % bw)
 
 	# Bilan
-	_section("💰 BILAN", Color(0.8, 0.9, 1.0))
+	_section("BILAN", Color(0.8, 0.9, 1.0))
 	var net := income - elec - fee
 	var net_col := Color(0.5, 1.0, 0.6) if net >= 0.0 else Color(1.0, 0.45, 0.4)
 	_row("Net / seconde", "%+.2f $" % net, net_col)
 	_row("Solde en caisse", "%.0f $" % GameManager.cash, Color(1.0, 1.0, 1.0))
 
 	# Température (avertissement)
-	_section("🌡 LOCAL", Color(1.0, 0.7, 0.4))
+	_section("LOCAL", Color(1.0, 0.7, 0.4))
 	var temp := GameManager.temperature
 	var over := GameManager.overheated
 	var warn := temp >= 30.0 and not over
 	var cooling := GameManager.cooling_total
 	_row("Refroidissement", "-%.2f °C/s" % (cooling * GameManager.HEAT_PER_SEC) if cooling > 0.0 else "— (aucune clim)")
 	if over:
-		_row("Température", "%.1f °C 🔥 SERVEURS ARRÊTÉS ! (achète des clims)" % temp,
+		_row("Température", "%.1f °C SERVEURS ARRÊTÉS ! (achète des clims)" % temp,
 				Color(1.0, 0.3, 0.3))
 	else:
-		_row("Température", "%.1f °C%s" % [temp, " ⚠ CHAUFFE !" if warn else ""],
+		_row("Température", "%.1f °C%s" % [temp, " CHAUFFE !" if warn else ""],
 				Color(1.0, 0.5, 0.4) if warn else Color(1, 1, 1, 0.9))

@@ -107,7 +107,7 @@ func _build_top_bar() -> void:
 
 	if premium:
 		var pro := Label.new()
-		pro.text = "● Serveur BianOS Pro"
+		pro.text = "Serveur BianOS Pro"
 		pro.add_theme_font_size_override("font_size", 12)
 		pro.add_theme_color_override("font_color", Color(0.5, 1.0, 0.9))
 		hb.add_child(pro)
@@ -118,7 +118,7 @@ func _build_top_bar() -> void:
 	hb.add_child(spacer)
 
 	var sound := Label.new()
-	sound.text = "🔊"
+	sound.text = "SON"
 	sound.add_theme_font_size_override("font_size", 14)
 	hb.add_child(sound)
 
@@ -232,7 +232,7 @@ func _build_windows() -> void:
 
 func _build_shutdown() -> void:
 	var btn := Button.new()
-	btn.text = "⏻  Éteindre"
+	btn.text = "Éteindre"
 	btn.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	btn.offset_left = 14.0
 	btn.offset_top = -58.0

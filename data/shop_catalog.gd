@@ -5,7 +5,7 @@ extends RefCounted
 ## ============================================================
 ##  C'est ICI qu'on ajoute facilement des machines au jeu !
 ##
-##  ➜ Copie-colle un bloc { ... } dans la liste de ton choix,
+##  Copie-colle un bloc { ... } dans la liste de ton choix,
 ##    change les valeurs, relance le jeu : la boutique en ligne
 ##    (navigateur « Renard ») se met à jour toute seule.
 ##
@@ -184,7 +184,7 @@ const LOCALS := [
 # ------------------------------------------------------------------
 #  PARTENARIATS — signe un deal avec un constructeur : ses machines te
 #  coûtent MOINS CHER à l'achat (buy_discount), mais les clients hébergés
-#  dessus paient MOINS (income_penalty → revenus par client réduits).
+# dessus paient MOINS (income_penalty : revenus par client réduits).
 #  Un vrai trade-off : parfait pour scaler vite, moins rentable à terme.
 #  target = id du serveur concerné.
 # ------------------------------------------------------------------

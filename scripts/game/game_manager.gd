@@ -11,7 +11,7 @@ const DEFAULT_ABO := "abo_1g"
 const CRITICAL_TEMP := 50.0
 const TEMP_AMBIANT := 20.0
 
-## Facteur de conversion chaleur/refroidissement → °C par seconde.
+## Facteur de conversion chaleur/refroidissement : °C par seconde.
 ## Source unique : l'affichage (shop, monitor, factures) l'utilise aussi.
 const HEAT_PER_SEC := 0.02
 
@@ -30,7 +30,7 @@ var cooling_total := 0.0
 ## Vrai quand la température dépasse CRITICAL_TEMP : serveurs à l'arrêt.
 var overheated := false
 
-## Achats UNIQUES déjà faits (id d'item → true) : abonnements achetés,
+## Achats UNIQUES déjà faits (id d'item : true) : abonnements achetés,
 ## pare-feu, locaux… On ne peut pas les racheter (boutique logique).
 ## Sauvegardé dans game_save.gd.
 var owned := {}

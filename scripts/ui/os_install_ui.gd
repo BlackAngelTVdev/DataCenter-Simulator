@@ -92,7 +92,7 @@ func _build() -> void:
 		var b := Button.new()
 		b.custom_minimum_size = Vector2(0, 66)
 		b.add_theme_font_size_override("font_size", 16)
-		b.text = "●  %s   ·   %s\n%s" % [os["name"], OSList.hosting_label(os["id"]), os["desc"]]
+		b.text = "%s · %s\n%s" % [os["name"], OSList.hosting_label(os["id"]), os["desc"]]
 		b.add_theme_stylebox_override("normal", UITheme.button_normal(Color(os["color"], 0.85)))
 		b.add_theme_stylebox_override("hover", UITheme.button_hover(os["color"].lightened(0.2)))
 		b.add_theme_stylebox_override("pressed", UITheme.button_pressed())
@@ -145,7 +145,7 @@ func _finish(os_id: String) -> void:
 		return  # annulé (Échap) ou déjà terminé : le tween ne doit rien réinstaller
 	item["os"] = os_id
 	item["os_name"] = str(OSList.get_os(os_id).get("name", os_id))
-	status_label.text = "✓ Système installé !"
+	status_label.text = "Système installé !"
 	_installing = false
 	installed.emit(os_id)
 	visible = false

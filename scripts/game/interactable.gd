@@ -11,7 +11,7 @@ var kind := "generic"  # "computer" | "bench" | "delivery" | "car" | "desk"
 var label := ""
 var box_size := Vector2(36, 30)
 var body_color := Color(0.4, 0.45, 0.55)
-var blocks := true  # false → le joueur peut traverser (ex: tapis de livraison)
+var blocks := true  # false : le joueur peut traverser (ex: tapis de livraison)
 var bake_mode := false
 
 var _body: Sprite2D

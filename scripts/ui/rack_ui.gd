@@ -156,7 +156,7 @@ func _card(server: ServerUnit, action_text: String, action_color: Color, enabled
 
 	var sat := server.is_saturated()
 	var status := Label.new()
-	status.text = "SATURÉ ⚠" if sat else "EN LIGNE"
+	status.text = "SATURÉ" if sat else "EN LIGNE"
 	status.add_theme_font_size_override("font_size", 12)
 	status.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4) if sat else Color(0.5, 1.0, 0.6))
 	info.add_child(status)
@@ -200,7 +200,7 @@ func _battery_section() -> void:
 		card.add_child(row)
 		var icon := TextureRect.new()
 		icon.texture = BakedAssets.item_tex(rack.battery)
-		# Pas de texture dédiée pour une batterie → bloc générique teinté
+		# Pas de texture dédiée pour une batterie : bloc générique teinté
 		icon.modulate = rack.battery.get("color", Color(0.35, 0.85, 0.5))
 		icon.custom_minimum_size = Vector2(40, 40)
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -253,7 +253,7 @@ func _stats_line(server: ServerUnit) -> String:
 	if server.configured():
 		os_name = str(OSList.get_os(server.os_id).get("name", server.os_id))
 		tag = OSList.hosting_label(server.os_id)
-	return "%s · %s · Clients %d/%d · ⚡ %d W · 🌡 +%.1f chaleur" % [
+	return "%s · %s · Clients %d/%d · %d W · +%.1f chaleur" % [
 		os_name,
 		tag,
 		server.clients,

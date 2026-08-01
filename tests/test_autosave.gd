@@ -19,7 +19,7 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 
-	# Nouvelle partie (pas de pending_slot → load_into reset). On s'assure
+	# Nouvelle partie (pas de pending_slot : load_into reset). On s'assure
 	# qu'un emplacement libre existe : sinon le garde anti-écrasement saute
 	# l'écriture (comportement attendu) et le test n'a rien à vérifier.
 	if SaveManager.current_slot < 0 and not SaveManager.has_free_slot():

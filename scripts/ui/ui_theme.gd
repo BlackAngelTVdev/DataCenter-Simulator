@@ -12,7 +12,7 @@ static func _flat(bg: Color, radius: float, border: Color, bw: int,
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg
 	# set_corner_radius_all attend un int : arrondi explicite (les appelants
-	# passent des floats entiers : 12.0, 10.0, 8.0…) → pas de perte de précision.
+	# passent des floats entiers : 12.0, 10.0, 8.0…) : pas de perte de précision.
 	sb.set_corner_radius_all(roundi(radius))
 	# Pas de liseré sur un fond transparent (boutons plats de la barre OS),
 	# SAUF si la bordure elle-même est bien visible (anneau de focus bleu).

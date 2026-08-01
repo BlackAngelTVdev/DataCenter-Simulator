@@ -1,7 +1,7 @@
 class_name BenchUI
 extends CanvasLayer
 ## Panneau de l'ÉTABLI PRO (Local 2) : les 2 baies d'installation d'OS.
-## On pose un serveur porté, on choisit un OS → l'installation démarre
+## On pose un serveur porté, on choisit un OS : l'installation démarre
 ## (4 s, les 2 baies tournent EN PARALLÈLE) et continue même panneau fermé.
 
 signal place_requested
@@ -157,7 +157,7 @@ func _bay_card(idx: int) -> Control:
 		icon.modulate = Color(0.2, 0.22, 0.28)
 	else:
 		# La texture de l'item est DÉJÀ cuite avec sa couleur : pas de modulate
-		# (sinon double teinte → icône assombrie).
+		# (sinon double teinte : icône assombrie).
 		icon.texture = BakedAssets.item_tex(bay["item"])
 	icon.custom_minimum_size = Vector2(44, 44)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -184,7 +184,7 @@ func _bay_card(idx: int) -> Control:
 		status.text = "En attente d'un serveur (sans OS)."
 		status.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
 	elif not bay.get("os_id", "").is_empty():
-		status.text = "✓ %s installé — prêt à être récupéré" % OSList.get_os(bay["os_id"]).get("name", bay["os_id"])
+		status.text = "%s installé — prêt à être récupéré" % OSList.get_os(bay["os_id"]).get("name", bay["os_id"])
 		status.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
 	elif bay.get("installing", false):
 		status.text = "Installation de %s… (les 2 baies tournent en parallèle)" % OSList.get_os(bay["pending_os"]).get("name", bay["pending_os"])

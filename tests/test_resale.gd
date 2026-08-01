@@ -6,7 +6,7 @@ extends Node
 ## Scénario du bug rapporté : le navigateur rend sa page une seule fois au
 ## _ready() (étagère vide) ; si le joueur dépose un item PUIS ouvre le
 ## navigateur, la section « Vendre ton stock » doit être re-rendue à
-## l'ouverture (_open_browser → _render_page) — c'est ce qu'on vérifie ici.
+## l'ouverture (_open_browser puis _render_page) — c'est ce qu'on vérifie ici.
 
 func _find_buttons(node: Node, out: Array) -> void:
 	for child in node.get_children():
@@ -24,7 +24,7 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 
-	# 1. Le navigateur a rendu sa page au _ready : étagère vide → pas de bouton.
+	# 1. Le navigateur a rendu sa page au _ready : étagère vide, pas de bouton.
 	var browser: OSBrowser = garage.computer_os.browser
 	var before: Array = []
 	_find_buttons(browser.page_box, before)

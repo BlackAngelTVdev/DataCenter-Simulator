@@ -1,11 +1,11 @@
 extends Node
-## Test du routage de l'onglet « 🤝 Partenaires » — exécuté comme SCÈNE
+## Test du routage de l'onglet « Partenaires » — exécuté comme SCÈNE
 ## (garage = racine = current_scene, Test = enfant, comme dans le vrai jeu).
 ##
 ## Bug rapporté : l'onglet existait mais affichait le SHOP normal. Cause :
 ## le routage testait url.contains("partner") alors que l'URL est
 ## https://partenaires.bian/ — « partner » n'est pas une sous-chaîne de
-## « partenaires » → la page retombait sur _render_shop().
+## « partenaires » : la page retombait sur _render_shop().
 
 func _find_label(node: Node, needle: String, out: Array) -> void:
 	for child in node.get_children():

@@ -5,9 +5,9 @@ extends RefCounted
 ## ============================================================
 ##  Chaque OS définit le TYPE D'OFFRE du serveur — c'est le cœur
 ##  du gameplay réaliste :
-##    hosting = "dedicated"  → offre SERVEUR DÉDIÉ : peu de clients,
+##    hosting = "dedicated"  : offre SERVEUR DÉDIÉ : peu de clients,
 ##                             mais des clients PREMIUM qui paient cher.
-##    hosting = "vps"        → offre VPS (nœud de virtualisation) :
+##    hosting = "vps"        : offre VPS (nœud de virtualisation) :
 ##                             BEAUCOUP de clients, mais chacun paie moins.
 ##
 ##  Champs :
@@ -16,8 +16,8 @@ extends RefCounted
 ##    hosting      : "dedicated" ou "vps"
 ##    desc         : description affichée dans l'UI
 ##    color        : couleur du logo
-##    slot_mult    : multiplie le nombre de clients max (VPS → plus de slots)
-##    income_mult  : multiplie le revenu PAR CLIENT (dédié → premium)
+##    slot_mult    : multiplie le nombre de clients max (VPS : plus de slots)
+##    income_mult  : multiplie le revenu PAR CLIENT (dédié : premium)
 ##    heat_mult    : multiplie la chaleur produite
 
 const SYSTEMS := [

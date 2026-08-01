@@ -4,13 +4,13 @@ extends Node2D
 ##  LE GARAGE / LOCAL 2 — cœur du jeu
 ## ============================================================
 ##  Vue de dessus sur grille : on contrôle un personnage (WASD/ZQSD).
-##   • PC dans un coin  → E → faux bureau → navigateur « Renard »
-##     → boutique Tech'Occase (data/shop_catalog.gd)
-##   • Livraison dehors (garage) → E → ramasser le colis
-##   • Établi (garage) → E → installer l'OS (data/os_list.gd)
-##   • Établi Pro (Local 2) → E → 2 baies d'installation EN PARALLÈLE
-##   • Voiture (dans la rue) → E / clic → menu des lieux (data/locations.gd)
-##   • Sol → E → poser le serveur (câblage automatique vers la box)
+##   • PC dans un coin  : E ouvre le faux bureau (navigateur « Renard »,
+##     boutique Tech'Occase — data/shop_catalog.gd)
+##   • Livraison dehors (garage) : E ramasse le colis
+##   • Établi (garage) : E installe l'OS (data/os_list.gd)
+##   • Établi Pro (Local 2) : E ouvre les 2 baies EN PARALLÈLE
+##   • Voiture (dans la rue) : E / clic ouvre le menu des lieux (data/locations.gd)
+##   • Sol : E pose le serveur (câblage automatique vers la box)
 ##  Un Timer « tick » chaque seconde : les clients remplissent les serveurs,
 ##  l'argent rentre, la température monte, la saturation alerte.
 ##
@@ -357,7 +357,7 @@ func _build_interactables() -> void:
 		add_child(bench_unit)
 		interactables.append(bench_unit)
 
-	# Voiture garée dans la rue : E ou clic → menu des lieux (TravelUI)
+	# Voiture garée dans la rue : E ou clic ouvre le menu des lieux (TravelUI)
 	var car := Interactable.new()
 	car.kind = "car"
 	car.label = "VOITURE"
@@ -367,7 +367,7 @@ func _build_interactables() -> void:
 	add_child(car)
 	interactables.append(car)
 
-	# Bureau de gestion collé au PC : E → factures (électricité, connexion, revenus)
+	# Bureau de gestion collé au PC : E ouvre les factures (électricité, connexion, revenus)
 	var desk := Interactable.new()
 	desk.kind = "desk"
 	desk.label = "BUREAU"
@@ -792,7 +792,7 @@ func _on_travel_requested(target: int) -> void:
 		return
 	if target == 1 and not GameManager.location_unlocked:
 		travel_ui.close()
-		hud.toast("🚧 Local 2 verrouillé ! Achète-le sur Tech'Occase (3000 $).")
+		hud.toast("Local 2 verrouillé ! Achète-le sur Tech'Occase (3000 $).")
 		return
 	travel_ui.close()
 	_teleport(target)
@@ -834,7 +834,7 @@ func _apply_offline_income() -> void:
 	if income > 0.0 and elapsed >= 1:
 		var gained := income * elapsed
 		GameManager.cash += gained
-		hud.toast("💤 %d serveur(s) ont travaillé pendant ton absence : +%d $." % [_online_servers(), int(gained)])
+		hud.toast("%d serveur(s) ont travaillé pendant ton absence : +%d $." % [_online_servers(), int(gained)])
 
 
 # ------------------------------------------------------------------ Monde (snapshot / restore)
@@ -894,7 +894,7 @@ func restore_world(data: Dictionary) -> void:
 	var carried: Variant = data.get("carried", {})
 	if typeof(carried) == TYPE_DICTIONARY and not (carried as Dictionary).is_empty():
 		player.carried_item = GameSave.restore_item(carried)
-	# Les armoires d'abord : on mémorise case d'origine → rack pour retrouver
+	# Les armoires d'abord : on mémorise la case d'origine (rack) pour retrouver
 	# les serveurs montés même après relocalisation (compat garage réduit).
 	var rack_by_orig := {}
 	for rd in data.get("racks", []):
@@ -915,7 +915,7 @@ func restore_world(data: Dictionary) -> void:
 		var c_dict: Dictionary = cd
 		var c_orig := GameSave.cell_from(c_dict.get("cell", []))
 		_spawn_clim(GameSave.restore_item(c_dict.get("item", {})), _restore_cell(c_orig))
-	# Puis les serveurs (montés → ils suivent LEUR armoire, relocalisée ou non)
+	# Puis les serveurs (montés : ils suivent LEUR armoire, relocalisée ou non)
 	for sd in data.get("servers", []):
 		if typeof(sd) != TYPE_DICTIONARY:
 			continue
@@ -1009,7 +1009,7 @@ func _try_place_carried() -> bool:
 
 
 func _try_click_car() -> bool:
-	## Clic gauche sur la voiture (dans la rue) → menu des lieux.
+	## Clic gauche sur la voiture (dans la rue) : ouvre le menu des lieux.
 	## Fonctionne MAINS VIDES (c'est le cas d'usage normal).
 	if computer_os.visible or install_ui.visible or rack_ui.visible \
 			or bench_ui.visible or storage_ui.visible or pause_menu.visible or travel_ui.visible \
@@ -1064,7 +1064,7 @@ func _place_at(cell: Vector2i) -> bool:
 		hud.toast("Trop loin ! Rapproche-toi (rayon de %d cases)." % PLACE_RANGE)
 		return true
 
-	# Montage serveur : armoire avec un slot libre ADJACENTE → montage auto.
+	# Montage serveur : armoire avec un slot libre ADJACENTE : montage auto.
 	if kind == "server":
 		var adj_rack := _adjacent_rack(cell)
 		if adj_rack != null:
@@ -1192,7 +1192,7 @@ func _draw_placement_overlay(item: Dictionary) -> void:
 				draw_rect(rect, Color(0.4, 1.0, 0.6, 0.7), false, 2.0)
 			else:
 				draw_rect(rect, Color(0.2, 1.0, 0.4, 0.14))
-	# Case survolée invalide → rouge (feedback « pas ici »)
+	# Case survolée invalide : rouge (feedback « pas ici »)
 	if not _cell_valid_for(item, hover):
 		var r := Rect2(hover.x * TILE, hover.y * TILE, TILE, TILE)
 		draw_rect(r, Color(1.0, 0.3, 0.3, 0.22))
@@ -1364,10 +1364,10 @@ func _on_tick() -> void:
 	GameManager.overheated = overheat
 	if overheat and not _overheat_announced:
 		_overheat_announced = true
-		hud.toast("🔥 %s à %.0f °C : les serveurs S'ARRÊTENT ! Installe des climatiseurs (Tech'Occase)." % [_loc_name(), GameManager.temperature])
+		hud.toast("%s à %.0f °C : les serveurs S'ARRÊTENT ! Installe des climatiseurs (Tech'Occase)." % [_loc_name(), GameManager.temperature])
 	elif not overheat and _overheat_announced:
 		_overheat_announced = false
-		hud.toast("❄️ Température redescendue : les serveurs redémarrent !")
+		hud.toast("Température redescendue : les serveurs redémarrent !")
 
 	# Les clients arrivent (limités par les slots + la bande passante) — sauf
 	# en cas de surchauffe : les serveurs sont éteints, personne ne se connecte.
@@ -1387,7 +1387,7 @@ func _on_tick() -> void:
 		if s.is_saturated():
 			if not s.was_full_announced:
 				s.was_full_announced = true
-				hud.toast("⚠ %s est SATURÉ ! Installe un autre serveur." % s.item.get("name", "Serveur"))
+				hud.toast("%s est SATURÉ ! Installe un autre serveur." % s.item.get("name", "Serveur"))
 			else:
 				s.was_full_announced = false
 
@@ -1428,10 +1428,10 @@ func _on_tick() -> void:
 	GameManager.online_servers = _online_servers()
 	GameManager.total_watts = total_watts
 
-	# Alerte bande passante (la connexion ne suit plus → acheter un abo)
+	# Alerte bande passante (la connexion ne suit plus : acheter un abo)
 	if has_free_slots and total_clients >= bw and tick - bandwidth_warn_tick > 5:
 		bandwidth_warn_tick = tick
-		hud.toast("🌐 Connexion saturée ! Achète un meilleur abonnement sur Tech'Occase.")
+		hud.toast("Connexion saturée ! Achète un meilleur abonnement sur Tech'Occase.")
 
 
 func _online_servers() -> int:
@@ -1475,7 +1475,7 @@ func _spawn_garage_cat() -> void:
 	garage_cat = GarageCat.new()
 	garage_cat.name = "GarageCat"
 	add_child(garage_cat)
-	hud.toast("🐱 Un chat du quartier est entré dans le garage… il inspecte tes serveurs.")
+	hud.toast("Un chat du quartier est entré dans le garage… il inspecte tes serveurs.")
 
 
 func _surprise_delivery() -> void:
@@ -1494,25 +1494,25 @@ func _surprise_delivery() -> void:
 	var item: Dictionary = pool[randi() % pool.size()].duplicate(true)
 	GameManager.deliveries.append(item)
 	_refresh_delivery_crates()
-	hud.toast("📦 Livraison surprise : un livreur s'est trompé d'adresse — %s gratuit devant la porte !" % item.get("name", "colis"))
+	hud.toast("Livraison surprise : un livreur s'est trompé d'adresse — %s gratuit devant la porte !" % item.get("name", "colis"))
 
 
 func _client_tip() -> void:
 	## Un client satisfait laisse un pourboire en liquide.
 	var tip := randi_range(15, 60) + int(GameManager.income_per_sec * 10.0)
 	GameManager.cash += tip
-	hud.toast("💶 Un client te laisse un pourboire : +%d $ !" % tip)
+	hud.toast("Un client te laisse un pourboire : +%d $ !" % tip)
 
 
 func _ambient_toast() -> void:
 	## Petites scènes de vie : le garage n'est pas un décor mort.
 	var msgs := [
-		"📻 Le voisin écoute la radio à fond. Tu entends du synthwave.",
-		"🕊 Un pigeon s'est posé sur la box réseau. Il supervise.",
-		"🔔 Quelqu'un sonne… Personne. Livreur perdu, sans doute.",
-		"🧰 Tu retrouves un vieux tournevis sous l'établi. +2 de motivation.",
-		"🌧 Il pleut dehors. Les serveurs adorent la fraîcheur.",
-		"🍕 Une pizza est livrée par erreur. Tu la gardes. (Elle est délicieuse.)",
+		"Le voisin écoute la radio à fond. Tu entends du synthwave.",
+		"Un pigeon s'est posé sur la box réseau. Il supervise.",
+		"Quelqu'un sonne… Personne. Livreur perdu, sans doute.",
+		"Tu retrouves un vieux tournevis sous l'établi. +2 de motivation.",
+		"Il pleut dehors. Les serveurs adorent la fraîcheur.",
+		"Une pizza est livrée par erreur. Tu la gardes. (Elle est délicieuse.)",
 	]
 	hud.toast(msgs[randi() % msgs.size()])
 
@@ -1560,7 +1560,7 @@ func _notification(what: int) -> void:
 
 func _autosave() -> void:
 	## Sauvegarde automatique (timer périodique, retour au menu, fermeture de
-	## fenêtre). Réutilise GameSave.persist → même emplacement que la partie
+	## fenêtre). Réutilise GameSave.persist : même emplacement que la partie
 	## en cours, sinon un emplacement libre. Garde anti-écrasement : une
 	## nouvelle partie ne remplace JAMAIS une sauvegarde existante.
 	if GameManager.pending_teleport >= 0:

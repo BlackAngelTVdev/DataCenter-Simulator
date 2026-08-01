@@ -38,7 +38,7 @@ const WALL_RACKS_RECT := Rect2(1280, 160, 96, 416)
 const CABINET_RECT := Rect2(32, 608, 96, 128)
 
 ## Le décor est CUIT dans l'image de fond (bg_local2.png). À l'exécution,
-## visuals=false → on ne dessine plus (les collisions restent actives).
+## visuals=false : on ne dessine plus (les collisions restent actives).
 var visuals := true
 
 

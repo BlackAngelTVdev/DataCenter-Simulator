@@ -51,7 +51,7 @@ func _build_sprites() -> void:
 
 
 func configured() -> bool:
-	## Un OS a été installé → le serveur peut être câblé et encaisser.
+	## Un OS a été installé : le serveur peut être câblé et encaisser.
 	return not os_id.is_empty()
 
 
@@ -65,7 +65,7 @@ func max_clients() -> int:
 	var base := float(int(item.get("slots", 4))) * float(os_data().get("slot_mult", 1.0))
 	var total := int(round(base))
 	if rack != null:
-		total *= 2  # monté en armoire → capacité doublée
+		total *= 2  # monté en armoire : capacité doublée
 	return total
 
 
@@ -80,7 +80,7 @@ func heat() -> float:
 	var mult := float(os_data().get("heat_mult", 1.0))
 	var h := float(item.get("heat", 1.0)) * mult
 	if rack != null and rack.has_battery():
-		h *= 0.7  # onduleur : alimentation stabilisée → moins de chauffe
+		h *= 0.7  # onduleur : alimentation stabilisée, moins de chauffe
 	return h
 
 
@@ -109,7 +109,7 @@ func _draw() -> void:
 	if not configured():
 		label = "SANS OS"
 	elif stopped:
-		label = "ARRÊT 🔥"
+		label = "ARRÊT"
 	else:
 		label = OSList.hosting_short(os_id) + " " + label
 	draw_string(font, Vector2(-SIZE.x / 2 + 11, -SIZE.y / 2 + 13), label, \

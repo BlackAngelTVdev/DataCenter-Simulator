@@ -64,7 +64,7 @@ func _build() -> void:
 	panel.add_child(vb)
 
 	var title := Label.new()
-	title.text = "🚗 VOITURE — Où aller ?"
+	title.text = "VOITURE — Où aller ?"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 26)
 	title.add_theme_color_override("font_color", Color(0.72, 0.9, 1.0))
@@ -129,7 +129,7 @@ func _place_card(place: Dictionary) -> Control:
 	var desc := Label.new()
 	desc.text = str(place["desc"])
 	if not unlocked:
-		desc.text += "   🔒 Verrouillé — achète le local sur Tech'Occase."
+		desc.text += " Verrouillé — achète le local sur Tech'Occase."
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	desc.add_theme_font_size_override("font_size", 12)
 	desc.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
@@ -140,7 +140,7 @@ func _place_card(place: Dictionary) -> Control:
 	if here:
 		go.text = "Vous êtes ici"
 	elif not unlocked:
-		go.text = "🔒 Verrouillé"
+		go.text = "Verrouillé"
 	go.pressed.connect(func() -> void: travel_requested.emit(pid))
 	go.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(go)

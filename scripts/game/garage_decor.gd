@@ -37,7 +37,7 @@ const VAN_RECT := Rect2(700, 556, 160, 84)
 const DUMPSTER_RECT := Rect2(100, 584, 56, 40)
 
 ## Le décor est CUIT dans l'image de fond (bg_garage.png). À l'exécution,
-## visuals=false → on ne dessine plus (les collisions restent actives).
+## visuals=false : on ne dessine plus (les collisions restent actives).
 var visuals := true
 
 

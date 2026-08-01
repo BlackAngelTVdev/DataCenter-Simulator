@@ -1,12 +1,12 @@
 class_name OSBrowser
 extends PanelContainer
 ## Fenêtre « Renard » : le navigateur web du faux OS.
-##  • https://tech-occase.bian/   → boutique Tech'Occase (achat de matériel)
-##  • https://monitor.bian/       → MONITOR : supervision en direct de la
+##  • https://tech-occase.bian/   : boutique Tech'Occase (achat de matériel)
+##  • https://monitor.bian/       : MONITOR — supervision en direct de la
 ##    connexion (saturée ou non, clients / bande passante) et des serveurs
 ##    (charge, saturation, revenus). Rafraîchi chaque seconde.
-##  • https://partenaires.bian/   → BUREAU DES PARTENARIATS : signer des deals
-##    constructeurs (achat moins cher ↔ revenus clients réduits), page dédiée.
+##  • https://partenaires.bian/   : BUREAU DES PARTENARIATS : signer des deals
+##    constructeurs (achat moins cher / revenus clients réduits), page dédiée.
 ## Les données viennent de la scène garage courante (placed_servers) et de
 ## GameManager (stats recalculées au tick).
 
@@ -68,7 +68,7 @@ func _ready() -> void:
 
 # ------------------------------------------------------------------ UI
 func _btn(text: String, min_w: float) -> Button:
-	## Petit bouton de barre d'outils (← → ⟳ ✕) : stylé comme le reste de l'UI.
+	## Petit bouton de barre d'outils (< > X) : stylé comme le reste de l'UI.
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(min_w, 0)
@@ -88,7 +88,7 @@ func _build_title_bar() -> Control:
 	panel.add_theme_stylebox_override("panel", UITheme.tinted(Color(0.16, 0.19, 0.26), 14.0, 6.0))
 
 	var dots := Label.new()
-	dots.text = "   ● ● ●   "  # feux de fenêtre façon GNOME
+	dots.text = " " # feux de fenêtre façon GNOME
 	dots.add_theme_font_size_override("font_size", 12)
 	dots.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
 	bar.add_child(dots)
@@ -99,7 +99,7 @@ func _build_title_bar() -> Control:
 	title.add_theme_font_size_override("font_size", 14)
 	bar.add_child(title)
 
-	var close_btn := _btn("✕", 32.0)
+	var close_btn := _btn("X", 32.0)
 	close_btn.pressed.connect(func() -> void: closed.emit())
 	bar.add_child(close_btn)
 	return panel
@@ -116,13 +116,13 @@ func _build_toolbar() -> Control:
 	var panel := PanelContainer.new()
 	panel.add_child(bar)
 
-	var back := _btn("←", 36.0)
+	var back := _btn("<", 36.0)
 	back.pressed.connect(_go_back)
 	bar.add_child(back)
-	var fwd := _btn("→", 36.0)
+	var fwd := _btn(">", 36.0)
 	fwd.pressed.connect(_go_forward)
 	bar.add_child(fwd)
-	var refresh := _btn("⟳", 36.0)
+	var refresh := _btn("R", 36.0)
 	refresh.pressed.connect(_reload)
 	bar.add_child(refresh)
 
@@ -200,7 +200,7 @@ func _render_page() -> void:
 	elif url.contains("partenaire"):
 		# ATTENTION : « partenaire » et PAS « partner » — l'URL est
 		# https://partenaires.bian/ (« partner » n'est pas une sous-chaîne
-		# de « partenaires » → l'onglet retombait sur le shop).
+		# de « partenaires » : l'onglet retombait sur le shop).
 		current_page = "partnership"
 		_render_partnerships()
 	else:
@@ -214,7 +214,7 @@ func _render_shop() -> void:
 		child.queue_free()
 	# On repart d'une liste PROPRE AVANT de construire les cartes : les _card()
 	# vont ré-ajouter leurs entrées, puis _refresh_cash() à la fin lit la liste
-	# pleine → les états ACTIF / POSSÉDÉ / DÉPASSÉ s'appliquent enfin.
+	# pleine : les états ACTIF / POSSÉDÉ / DÉPASSÉ s'appliquent enfin.
 	buy_entries.clear()
 	# on re-crée le bandeau à chaque rendu (simple et robuste)
 	var banner := _build_banner()
@@ -242,7 +242,7 @@ func _render_shop() -> void:
 
 	page_box.add_child(_section_title("Serveurs d'occasion"))
 	var hint := Label.new()
-	hint.text = "💡 L'OS installé à l'établi définit ton offre : Deblon / Ouboutou = serveur DÉDIÉ (peu de clients, premium) · Proxmousse = VPS (beaucoup de clients, moins chers)."
+	hint.text = "L'OS installé à l'établi définit ton offre : Deblon / Ouboutou = serveur DÉDIÉ (peu de clients, premium) · Proxmousse = VPS (beaucoup de clients, moins chers)."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.add_theme_color_override("font_color", Color(0.75, 0.85, 1.0))
@@ -256,7 +256,7 @@ func _render_shop() -> void:
 		page_box.add_child(_card(item))
 	page_box.add_child(_section_title("Batteries & alimentation"))
 	var battery_hint := Label.new()
-	battery_hint.text = "💡 L'onduleur se monte dans le SLOT BATTERIE d'une armoire Pro Data : -30% de chaleur pour ses serveurs."
+	battery_hint.text = "L'onduleur se monte dans le SLOT BATTERIE d'une armoire Pro Data : -30% de chaleur pour ses serveurs."
 	battery_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	battery_hint.add_theme_font_size_override("font_size", 12)
 	battery_hint.add_theme_color_override("font_color", Color(0.6, 1.0, 0.75))
@@ -265,7 +265,7 @@ func _render_shop() -> void:
 		page_box.add_child(_card(item))
 	page_box.add_child(_section_title("Climatisation"))
 	var clim_hint := Label.new()
-	clim_hint.text = "💡 Les serveurs chauffent le local : au-delà de %d °C ils S'ARRÊTENT (plus de revenus !). Pose des clims où tu veux pour refroidir." % int(GameManager.CRITICAL_TEMP)
+	clim_hint.text = "Les serveurs chauffent le local : au-delà de %d °C ils S'ARRÊTENT (plus de revenus !). Pose des clims où tu veux pour refroidir." % int(GameManager.CRITICAL_TEMP)
 	clim_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	clim_hint.add_theme_font_size_override("font_size", 12)
 	clim_hint.add_theme_color_override("font_color", Color(0.6, 1.0, 1.0))
@@ -274,7 +274,7 @@ func _render_shop() -> void:
 		page_box.add_child(_card(item))
 	page_box.add_child(_section_title("Locaux & expansion"))
 	var local_hint := Label.new()
-	local_hint.text = "💡 Le garage de départ n'accepte que %d armoires — achète un local pour étendre ton infra." % GameManager.rack_limit
+	local_hint.text = "Le garage de départ n'accepte que %d armoires — achète un local pour étendre ton infra." % GameManager.rack_limit
 	local_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	local_hint.add_theme_font_size_override("font_size", 12)
 	local_hint.add_theme_color_override("font_color", Color(0.8, 0.75, 1.0))
@@ -286,9 +286,9 @@ func _render_shop() -> void:
 		page_box.add_child(_card(item))
 
 	# --- Vendre son stock (étagère du local courant) ---
-	page_box.add_child(_section_title("📦 Vendre ton stock"))
+	page_box.add_child(_section_title("Vendre ton stock"))
 	var sell_hint := Label.new()
-	sell_hint.text = "💡 Dépose du matériel sur l'étagère pour le revendre ici : reprise à %d%% du prix d'achat (+10%% si un OS est déjà installé sur un serveur)." % int(ShopCatalog.RESALE_RATIO * 100)
+	sell_hint.text = "Dépose du matériel sur l'étagère pour le revendre ici : reprise à %d%% du prix d'achat (+10%% si un OS est déjà installé sur un serveur)." % int(ShopCatalog.RESALE_RATIO * 100)
 	sell_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	sell_hint.add_theme_font_size_override("font_size", 12)
 	sell_hint.add_theme_color_override("font_color", Color(1.0, 0.85, 0.5))
@@ -353,9 +353,9 @@ func _build_site_links() -> Control:
 	row.add_theme_constant_override("separation", 8)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	for link in [
-		["🛒 Tech'Occase", SITE_URL],
-		["🤝 Partenaires", PARTNERSHIP_URL],
-		["📊 Monitor", MONITOR_URL],
+		["Tech'Occase", SITE_URL],
+		["Partenaires", PARTNERSHIP_URL],
+		["Monitor", MONITOR_URL],
 	]:
 		var b := _btn(link[0], 180.0)
 		b.pressed.connect(_navigate.bind(link[1]))
@@ -382,9 +382,9 @@ func _render_partnerships() -> void:
 	page_box.add_child(_build_partner_banner())
 	page_box.add_child(_build_site_links())
 
-	page_box.add_child(_section_title("🤝 Deals constructeurs"))
+	page_box.add_child(_section_title("Deals constructeurs"))
 	var hint := Label.new()
-	hint.text = "💡 Signe un deal avec un constructeur : tu achètes sa machine MOINS CHER, mais les clients hébergés dessus paient MOINS (revenus réduits). Un vrai trade-off stratégique — à toi de choisir."
+	hint.text = "Signe un deal avec un constructeur : tu achètes sa machine MOINS CHER, mais les clients hébergés dessus paient MOINS (revenus réduits). Un vrai trade-off stratégique — à toi de choisir."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.add_theme_color_override("font_color", Color(1.0, 0.9, 0.55))
@@ -413,7 +413,7 @@ func _build_partner_banner() -> Control:
 	banner.add_child(vb)
 
 	var site_name := Label.new()
-	site_name.text = "🤝 Bureau des Partenariats"
+	site_name.text = "Bureau des Partenariats"
 	site_name.add_theme_font_size_override("font_size", 26)
 	site_name.add_theme_color_override("font_color", Color(1.0, 0.85, 0.5))
 	vb.add_child(site_name)
@@ -448,7 +448,7 @@ func _render_monitor() -> void:
 	banner.add_child(banner_vb)
 
 	var site_name := Label.new()
-	site_name.text = "📊 MONITOR — Supervision"
+	site_name.text = "MONITOR — Supervision"
 	site_name.add_theme_font_size_override("font_size", 26)
 	site_name.add_theme_color_override("font_color", Color(0.5, 1.0, 0.8))
 	banner_vb.add_child(site_name)
@@ -462,7 +462,7 @@ func _render_monitor() -> void:
 	page_box.add_child(_build_site_links())
 
 	# --- Connexion ---
-	page_box.add_child(_section_title("🌐 Connexion"))
+	page_box.add_child(_section_title("Connexion"))
 	var conn_card := PanelContainer.new()
 	conn_card.add_theme_stylebox_override("panel", UITheme.card(12))
 	var conn_vb := VBoxContainer.new()
@@ -483,7 +483,7 @@ func _render_monitor() -> void:
 	page_box.add_child(conn_card)
 
 	# --- Infrastructure (stats globales) ---
-	page_box.add_child(_section_title("🖥 Infrastructure"))
+	page_box.add_child(_section_title("Infrastructure"))
 	var infra_card := PanelContainer.new()
 	infra_card.add_theme_stylebox_override("panel", UITheme.card(12))
 	var infra_grid := GridContainer.new()
@@ -500,7 +500,7 @@ func _render_monitor() -> void:
 	page_box.add_child(infra_card)
 
 	# --- Serveurs ---
-	page_box.add_child(_section_title("🖴 Serveurs"))
+	page_box.add_child(_section_title("Serveurs"))
 	mon_servers_box = VBoxContainer.new()
 	mon_servers_box.add_theme_constant_override("separation", 8)
 	page_box.add_child(mon_servers_box)
@@ -561,13 +561,13 @@ func _refresh_monitor() -> void:
 		else (Color(1.0, 0.75, 0.3) if used >= 0.8 else Color(0.4, 0.9, 0.6))
 	mon_conn_bar.add_theme_stylebox_override("fill", _bar_fill(conn_color))
 	if used >= 1.0:
-		mon_conn_status.text = "⚠ CONNEXION SATURÉE — achète un meilleur abonnement !"
+		mon_conn_status.text = "CONNEXION SATURÉE — achète un meilleur abonnement !"
 		mon_conn_status.add_theme_color_override("font_color", Color(1.0, 0.4, 0.35))
 	elif used >= 0.8:
-		mon_conn_status.text = "⚠ Trafic élevé (%.0f %%) — pense à augmenter ta bande passante." % (used * 100.0)
+		mon_conn_status.text = "Trafic élevé (%.0f %%) — pense à augmenter ta bande passante." % (used * 100.0)
 		mon_conn_status.add_theme_color_override("font_color", Color(1.0, 0.75, 0.3))
 	else:
-		mon_conn_status.text = "✅ Connexion OK (%.0f %%)" % (used * 100.0)
+		mon_conn_status.text = "Connexion OK (%.0f %%)" % (used * 100.0)
 		mon_conn_status.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
 
 	# Infrastructure
@@ -626,10 +626,10 @@ func _server_monitor_card(s: ServerUnit) -> Control:
 		stat = "SANS OS"
 		color = Color(1, 1, 1, 0.5)
 	elif s.is_saturated():
-		stat = "SATURÉ ⚠"
+		stat = "SATURÉ"
 		color = Color(1.0, 0.4, 0.35)
 	elif GameManager.overheated:
-		stat = "ARRÊT 🔥"
+		stat = "ARRÊT"
 		color = Color(1.0, 0.4, 0.35)
 	else:
 		stat = "EN LIGNE"
@@ -753,7 +753,7 @@ func _specs(item: Dictionary) -> String:
 			return "Slot batterie d'armoire Pro · -30% de chaleur pour ses serveurs"
 		"clim":
 			return "Refroidit : -%.2f °C/s · consomme %d W · à poser au sol" % [
-				float(item.get("cooling", 0.0)) * GameManager.HEAT_PER_SEC,  # unités de chaleur → °C/s
+				float(item.get("cooling", 0.0)) * GameManager.HEAT_PER_SEC,  # unités de chaleur : °C/s
 				int(item.get("watts", 0)),
 			]
 		"upgrade":
@@ -781,7 +781,7 @@ func _refresh_cash() -> void:
 		_refresh_monitor()
 		return
 	if is_instance_valid(cash_label):
-		cash_label.text = "💰 %d $" % int(GameManager.cash)
+		cash_label.text = "%d $" % int(GameManager.cash)
 	for entry in buy_entries:
 		var btn: Button = entry["btn"]
 		var item: Dictionary = entry["item"]
@@ -808,12 +808,12 @@ func _refresh_cash() -> void:
 			"partnership":
 				if GameManager.owns(str(item["id"])):
 					btn.disabled = true
-					btn.text = "SIGNÉ ✓"
+					btn.text = "SIGNÉ"
 
 
 func _on_flash_timeout() -> void:
 	## Le bandeau de la boutique est recréé à chaque rendu de page (shop/monitor) :
-	## l'ancien flash_label peut être libéré avant la fin du timer → garde obligatoire.
+	## l'ancien flash_label peut être libéré avant la fin du timer : garde obligatoire.
 	if is_instance_valid(flash_label):
 		flash_label.visible = false
 
@@ -905,12 +905,12 @@ func _sell_stock(idx: int) -> void:
 		# Case déjà vide (vente précédente, ou prise à l'étagère) : on
 		# resynchronise l'affichage et on prévient au lieu de rien faire.
 		_render_shop()
-		_flash("⚠ Cet objet n'est plus sur l'étagère.")
+		_flash("Cet objet n'est plus sur l'étagère.")
 		return
 	var value := ShopCatalog.resale_value(it)
 	GameManager.cash += value
 	_render_shop()
-	_flash("✓ %s vendu : +%d $" % [it.get("name", "Objet"), value])
+	_flash("%s vendu : +%d $" % [it.get("name", "Objet"), value])
 
 
 func _buy(item: Dictionary) -> void:
@@ -918,14 +918,14 @@ func _buy(item: Dictionary) -> void:
 	var kind := str(item.get("kind", ""))
 	# Achats uniques : on ne rachète pas un abo / pare-feu / local / partenaire.
 	if kind in ["abo", "upgrade", "local", "partnership"] and GameManager.owns(str(item["id"])):
-		_flash("⚠ Déjà possédé !")
+		_flash("Déjà possédé !")
 		return
 	# Abonnement : pas de downgrade (on ne reprend pas un abo moins bon).
 	if kind == "abo":
 		var cur_tier := ShopCatalog.abo_tier(GameManager.abo_id)
 		var new_tier := ShopCatalog.abo_tier(str(item["id"]))
 		if new_tier < cur_tier:
-			_flash("⚠ Ton abonnement actuel est déjà meilleur !")
+			_flash("Ton abonnement actuel est déjà meilleur !")
 			return
 	if GameManager.cash < price:
 		_flash("Pas assez d'argent ! Il faut %d $." % price)
@@ -934,12 +934,12 @@ func _buy(item: Dictionary) -> void:
 	match kind:
 		"server", "furniture", "battery", "clim":
 			GameManager.deliveries.append(item.duplicate(true))
-			_flash("✓ Commande passée ! Livraison à l'extérieur du garage (porte du bas).")
+			_flash("Commande passée ! Livraison à l'extérieur du garage (porte du bas).")
 		"upgrade":
 			GameManager.mark_owned(str(item["id"]))
 			if item["id"] == "upgrade_firewall":
 				GameManager.firewall_owned = true
-			_flash("✓ Pare-feu installé : ton réseau est protégé contre les attaques !")
+			_flash("Pare-feu installé : ton réseau est protégé contre les attaques !")
 		"local":
 			GameManager.mark_owned(str(item["id"]))
 			if int(item.get("unlock_location", 0)) != 0:
@@ -949,10 +949,10 @@ func _buy(item: Dictionary) -> void:
 		"abo":
 			GameManager.mark_owned(str(item["id"]))
 			GameManager.abo_id = item["id"]
-			_flash("✓ Abonnement %s activé !" % item.get("name", ""))
+			_flash("Abonnement %s activé !" % item.get("name", ""))
 		"partnership":
 			GameManager.mark_owned(str(item["id"]))
-			_flash("✓ Partenariat %s signé : tu achètes la machine -%d%%, mais ses clients paient -%d%%." % [
+			_flash("Partenariat %s signé : tu achètes la machine -%d%%, mais ses clients paient -%d%%." % [
 				item.get("name", ""),
 				int(item.get("buy_discount", 0.0) * 100),
 				int(item.get("income_penalty", 0.0) * 100),
@@ -960,8 +960,8 @@ func _buy(item: Dictionary) -> void:
 	if item.get("kind", "") == "local":
 		_render_page()
 		if int(item.get("unlock_location", 0)) != 0:
-			_flash("✓ LOCAL 2 DÉBLOQUÉ ! La voiture peut maintenant t'y emmener (dans la rue).")
+			_flash("LOCAL 2 DÉBLOQUÉ ! La voiture peut maintenant t'y emmener (dans la rue).")
 		else:
-			_flash("✓ Local acheté ! Limite d'armoires : %d." % GameManager.rack_limit)
+			_flash("Local acheté ! Limite d'armoires : %d." % GameManager.rack_limit)
 	else:
 		_refresh_cash()

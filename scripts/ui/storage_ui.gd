@@ -137,7 +137,7 @@ func _slot_card(idx: int) -> Control:
 		icon.modulate = Color(0.2, 0.22, 0.28)
 	else:
 		# La texture de l'item est DÉJÀ cuite avec sa couleur : pas de modulate
-		# (sinon double teinte → icône assombrie). Pour les items SANS texture
+		# (sinon double teinte : icône assombrie). Pour les items SANS texture
 		# dédiée (batterie, abo, local…), on teinte le bloc générique.
 		icon.texture = BakedAssets.item_tex(it)
 		var ikind := str(it.get("kind", ""))
@@ -168,7 +168,7 @@ func _slot_card(idx: int) -> Control:
 		status.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
 	elif it.get("kind", "") == "server":
 		if it.has("os"):
-			status.text = "✓ OS installé : %s — prêt à brancher" % it.get("os_name", it.get("os", ""))
+			status.text = "OS installé : %s — prêt à brancher" % it.get("os_name", it.get("os", ""))
 			status.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
 		else:
 			status.text = "Sans OS — à passer par l'établi d'abord."

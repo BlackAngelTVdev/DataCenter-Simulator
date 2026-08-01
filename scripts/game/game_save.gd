@@ -120,7 +120,7 @@ static func load_into(garage: GarageScene) -> void:
 	else:
 		GameManager.carried = {}
 
-	# Monde du local courant (armoires → serveurs → établi Pro → étagère)
+	# Monde du local courant (armoires, serveurs, établi Pro, étagère)
 	garage.restore_world(GameManager.worlds.get(GameManager.location, {}))
 	garage.player.carried_item = GameManager.carried.duplicate(true)
 

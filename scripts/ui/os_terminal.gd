@@ -34,7 +34,7 @@ func _ready() -> void:
 	title_bar.add_child(title)
 
 	var close_btn := Button.new()
-	close_btn.text = "✕"
+	close_btn.text = "X"
 	close_btn.custom_minimum_size = Vector2(30, 0)
 	close_btn.add_theme_font_size_override("font_size", 13)
 	close_btn.add_theme_stylebox_override("normal", UITheme.button_normal(Color(0.35, 0.12, 0.12)))

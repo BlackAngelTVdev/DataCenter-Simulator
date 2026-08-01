@@ -88,7 +88,7 @@ func _build_menu() -> void:
 	resume.pressed.connect(_on_resume)
 	vb.add_child(resume)
 
-	# --- Mes Sauvegardes (bouton → sous-menu des sauvegardes) ---
+	# --- Mes Sauvegardes (bouton : sous-menu des sauvegardes) ---
 	var saves_btn := UIHelpers.make_button("Mes Sauvegardes", false, Vector2(360, 62))
 	saves_btn.pressed.connect(_on_saves)
 	vb.add_child(saves_btn)
