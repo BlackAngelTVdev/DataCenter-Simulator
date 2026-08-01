@@ -81,6 +81,13 @@ const OUTAGE_DUR_MAX := 16
 const OUTAGE_COOLDOWN_MIN := 50
 const OUTAGE_COOLDOWN_MAX := 100
 
+## Usure des serveurs : augmentation par seconde de fonctionnement et
+## probabilité de panne (proportionnelle à l'usure). À l'usure max (1.0),
+## la probabilité par tick est BREAK_CHANCE (≈ 0,05 %/s : une panne toutes
+## les ~30 min pour une machine très usée). Maintenance (E) pour réparer.
+const WEAR_PER_TICK := 0.0006
+const BREAK_CHANCE := 0.0005
+
 var player: Player
 var hud: HUD
 var computer_os: ComputerOS
@@ -95,6 +102,8 @@ var bills_ui: BillsUI
 var decor: Node2D
 var bench_unit: BenchUnit
 var storage_unit: StorageUnit
+var radio_unit: RadioUnit
+var bowl_interactable: Interactable
 var interactables: Array = []
 var units_layer: Node2D
 var cable_layer: Node2D
@@ -155,6 +164,16 @@ func _loc_storage_cell() -> Vector2i:
 	return GARAGE_STORAGE if location_id == 0 else LOCAL2_STORAGE
 
 
+func _loc_radio_cell() -> Vector2i:
+	## La radio est posée à côté de l'établi (décalée d'une case).
+	return _loc_bench_cell() + Vector2i(1, 0)
+
+
+func _loc_bowl_cell() -> Vector2i:
+	## La gamelle du chat est posée à côté de l'étagère de stockage.
+	return _loc_storage_cell() + Vector2i(-1, 0)
+
+
 func _loc_floor_allowed() -> bool:
 	return location_id == 0
 
@@ -185,6 +204,12 @@ func _ready() -> void:
 	_route_or_load()
 	_refresh_delivery_crates()
 	_recompute_stats()
+	# La gamelle doit refléter l'état CHARGÉ (nourriture versée ou non) :
+	# _build_interactables la crée avant _route_or_load().
+	_refresh_bowl_food()
+	# Chat adopté (nourriture versée dans la gamelle) : il vit ici désormais.
+	if location_id == 0 and GameManager.cat_adopted and not is_instance_valid(garage_cat):
+		_spawn_garage_cat(true)
 	if _just_teleported:
 		hud.toast("Bienvenue au %s ! (la voiture est dehors pour te déplacer)" % _loc_name())
 	elif SaveManager.current_slot >= 0:
@@ -346,6 +371,29 @@ func _build_interactables() -> void:
 	interactables.append(shelf)
 	storage_unit = shelf
 
+	# Radio du garage : posée à côté de l'établi, E l'allume/l'éteint. Elle
+	# diffuse TOUS les sons du dossier assets/radio-garage/ (lofi, synthwave,
+	# electro) — ajoute un fichier dans ce dossier, la radio le joue.
+	radio_unit = RadioUnit.new()
+	radio_unit.name = "GarageRadio"
+	radio_unit.position = _cell_center(_loc_radio_cell())
+	add_child(radio_unit)
+	interactables.append(radio_unit)
+
+	# Gamelle du chat : à côté de l'étagère. Verser la nourriture (achatée au
+	# shop, 5 $) -> le chat du quartier est adopté et reste dans le garage.
+	var bowl := Interactable.new()
+	bowl.kind = "bowl"
+	bowl.label = "GAMELLE"
+	bowl.box_size = Vector2(22, 14)
+	bowl.body_color = Color(0.55, 0.42, 0.3)
+	bowl.blocks = false
+	bowl.position = _cell_center(_loc_bowl_cell())
+	add_child(bowl)
+	interactables.append(bowl)
+	bowl_interactable = bowl
+	_refresh_bowl_food()
+
 	if location_id == 0:
 		var bench := Interactable.new()
 		bench.kind = "bench"
@@ -505,6 +553,39 @@ func _arm_event_timer() -> void:
 
 
 # ------------------------------------------------------------------ Interaction
+func _nearest_broken_server(max_dist: float) -> ServerUnit:
+	## Le serveur EN PANNE le plus proche (au sol ou monté) : la maintenance
+	## (E) est prioritaire tant qu'il est à portée.
+	var best: ServerUnit = null
+	var best_d := max_dist
+	for s in placed_servers:
+		if not s.configured() or not s.broken:
+			continue
+		var d := player.global_position.distance_to(s.global_position)
+		if d <= best_d:
+			best_d = d
+			best = s
+	return best
+
+
+func _repair_cost(s: ServerUnit) -> int:
+	## Coût de la maintenance : 25% du prix du serveur (jamais gratuit).
+	return maxi(10, int(s.item.get("price", 100) * 0.25))
+
+
+func _repair_server(s: ServerUnit) -> void:
+	## Maintenance : répare la panne (les revenus repartent). Coût en cash.
+	var cost := _repair_cost(s)
+	if GameManager.cash < cost:
+		hud.toast("Maintenance impossible : il faut %d $ !" % cost)
+		return
+	GameManager.cash -= cost
+	s.broken = false
+	s.wear = clampf(s.wear * 0.3, 0.0, 1.0)
+	s.queue_redraw()
+	hud.toast("%s réparé ! (%d $ de maintenance)" % [s.item.get("name", "Serveur"), cost])
+
+
 func _nearest_interactable(max_dist: float) -> Node:
 	var best: Node = null
 	var best_d := max_dist
@@ -532,6 +613,10 @@ func _nearest_interactable(max_dist: float) -> Node:
 			# porte un objet plaçable, E pose — il ira voir les factures plus tard.
 			if it.kind == "desk" and _carried_placable():
 				continue
+			# La radio non plus : porter un serveur/armoire à côté de l'établi
+			# doit poser l'objet, pas allumer la radio.
+			if it.kind == "radio" and _carried_placable():
+				continue
 		var d := player.global_position.distance_to(it.global_position)
 		if d <= best_d:
 			best_d = d
@@ -554,6 +639,8 @@ func _prompt_for(it: Node) -> String:
 		return "E — Gérer l'armoire"
 	if it is BenchUnit:
 		return "E — Établi Pro (2 baies)"
+	if it is RadioUnit:
+		return "E — Radio (%s)" % ("éteindre" if (it as RadioUnit).on else "allumer")
 	if it is Interactable:
 		match it.kind:
 			"computer":
@@ -570,6 +657,10 @@ func _prompt_for(it: Node) -> String:
 				return "E — Prendre la voiture"
 			"desk":
 				return "E — Consulter les factures"
+			"bowl":
+				if player.is_carrying() and player.carried_item.get("kind", "") == "catfood":
+					return "E — Verser la nourriture pour chat"
+				return "E — Gamelle (%s)" % ("pleine" if GameManager.cat_fed else "vide")
 	return ""
 
 
@@ -587,10 +678,18 @@ func _floor_prompt() -> String:
 			return "Clic gauche — Installer la batterie contre une armoire (E fonctionne aussi)"
 		"clim":
 			return "Clic gauche — Poser le climatiseur (E fonctionne aussi)"
+		"catfood":
+			return "E — Verser la nourriture dans la gamelle (près de l'étagère)"
 	return ""
 
 
 func _update_prompt() -> void:
+	# Maintenance prioritaire : un serveur en panne proche affiche le coût.
+	if not player.is_carrying():
+		var bs := _nearest_broken_server(INTERACT_RANGE)
+		if bs != null:
+			hud.show_prompt("E — Maintenance (%s, %d $)" % [bs.item.get("name", "Serveur"), _repair_cost(bs)])
+			return
 	var it := _nearest_interactable(INTERACT_RANGE)
 	if it != null:
 		var text := _prompt_for(it)
@@ -613,6 +712,12 @@ func _try_interact() -> void:
 			or bench_ui.visible or storage_ui.visible or pause_menu.visible or travel_ui.visible \
 			or bills_ui.visible:
 		return
+	# Maintenance : un serveur EN PANNE proche passe avant tout (E répare).
+	if not player.is_carrying():
+		var bs := _nearest_broken_server(INTERACT_RANGE)
+		if bs != null:
+			_repair_server(bs)
+			return
 	var it := _nearest_interactable(INTERACT_RANGE)
 	if it != null:
 		if it is RackUnit:
@@ -623,6 +728,9 @@ func _try_interact() -> void:
 			return
 		if it is BenchUnit:
 			bench_ui.open(it as BenchUnit)
+			return
+		if it is RadioUnit:
+			_radio_toggle()
 			return
 		if it is Interactable:
 			match it.kind:
@@ -636,9 +744,57 @@ func _try_interact() -> void:
 					travel_ui.open()
 				"desk":
 					bills_ui.open()
+				"bowl":
+					_bowl_interact()
 		return
 	if player.is_carrying():
 		_try_place_carried()
+
+
+func _radio_toggle() -> void:
+	if radio_unit == null:
+		return
+	radio_unit.toggle()
+	hud.toast("Radio %s !" % ("éteinte" if not radio_unit.on else "allumée — le garage a de l'ambiance"))
+
+
+func _bowl_interact() -> void:
+	## Gamelle : verser la nourriture pour chat (achetée au shop, 5 $) -> le
+	## chat du quartier est adopté et reste dans le garage.
+	if player.is_carrying():
+		var item := player.carried_item
+		if item.get("kind", "") == "catfood":
+			player.carried_item = {}
+			GameManager.cat_fed = true
+			GameManager.cat_adopted = true
+			_refresh_bowl_food()
+			# Le chat vit au GARAGE (DC-1) : c'est là qu'il traîne d'habitude.
+			if location_id == 0 and not is_instance_valid(garage_cat):
+				_spawn_garage_cat(true)
+			hud.toast("Le chat a adopté ton garage ! Il ne repartira plus.")
+			return
+		hud.toast("La gamelle n'accepte que de la nourriture pour chat (Tech'Occase, 5 $).")
+		return
+	if GameManager.cat_fed:
+		hud.toast("La gamelle est pleine. Le chat ronronne près de toi.")
+	else:
+		hud.toast("La gamelle est vide. Achète de la nourriture pour chat sur Tech'Occase (5 $).")
+
+
+func _refresh_bowl_food() -> void:
+	## Affiche une petite croquette dans la gamelle quand elle est remplie.
+	if bowl_interactable == null or not is_instance_valid(bowl_interactable):
+		return
+	var food := bowl_interactable.get_node_or_null("FoodSprite")
+	if GameManager.cat_fed:
+		if food == null:
+			food = Sprite2D.new()
+			food.name = "FoodSprite"
+			food.texture = BakedAssets.tex("bowl_food")
+			bowl_interactable.add_child(food)
+	else:
+		if food != null:
+			food.queue_free()
 
 
 func _bench_interact() -> void:
@@ -674,7 +830,12 @@ func _unrack(server: ServerUnit) -> void:
 	rack.mounted.erase(server)
 	placed_servers.erase(server)
 	server.rack = null
-	player.carried_item = server.item.duplicate(true)
+	# L'état d'usure suit le matériel : la revente (resale_value) reflète
+	# l'usure et les pannes du serveur déranché.
+	var carried := server.item.duplicate(true)
+	carried["wear"] = server.wear
+	carried["broken"] = server.broken
+	player.carried_item = carried
 	if server.cable != null:
 		server.cable.queue_free()
 		server.cable = null
@@ -846,6 +1007,9 @@ func _apply_offline_income() -> void:
 		for s in placed_servers:
 			if s.configured():
 				income += s.income_per_sec()
+	# Les contrats clients (revenus GARANTIS par mois) s'accumulent aussi
+	# pendant l'absence — c'est leur promesse.
+	income += GameManager.contract_income_per_sec()
 	if income > 0.0 and elapsed >= 1:
 		var gained := income * elapsed
 		GameManager.cash += gained
@@ -887,6 +1051,8 @@ func world_placed() -> Dictionary:
 			"was_full": s.was_full_announced,
 			"cell": [s.cell.x, s.cell.y],
 			"racked": s.rack != null,
+			"wear": s.wear,
+			"broken": s.broken,
 		})
 	if bench_unit != null:
 		for bay in bench_unit.bays:
@@ -948,6 +1114,8 @@ func restore_world(data: Dictionary) -> void:
 		server.os_id = str(s_dict.get("os", server.os_id))
 		server.clients = int(s_dict.get("clients", 0))
 		server.was_full_announced = bool(s_dict.get("was_full", false))
+		server.wear = clampf(float(s_dict.get("wear", 0.0)), 0.0, 1.0)
+		server.broken = bool(s_dict.get("broken", false))
 	# Baies de l'établi Pro (Local 2 uniquement)
 	if bench_unit != null:
 		bench_unit.restore_bays(data.get("bench", []))
@@ -1007,7 +1175,7 @@ func _can_place(cell: Vector2i, kind: String) -> bool:
 			return true
 		return false
 	if key == _loc_computer_cell() or key == _loc_bench_cell() or key == _loc_storage_cell() \
-			or key == _loc_desk_cell():
+			or key == _loc_desk_cell() or key == _loc_radio_cell() or key == _loc_bowl_cell():
 		return false
 	if kind == "server" and not _loc_floor_allowed():
 		return false  # Data Hall : pas de pose au sol, uniquement en armoire
@@ -1061,6 +1229,9 @@ func _place_at(cell: Vector2i) -> bool:
 	var kind := str(item.get("kind", ""))
 	if kind == "server" and not item.has("os"):
 		hud.toast("Installe d'abord un OS à l'établi !")
+		return true
+	if kind == "catfood":
+		hud.toast("Verse la nourriture dans la GAMELLE (près de l'étagère) — appuie sur E devant elle.")
 		return true
 	if kind != "server" and kind != "furniture" and kind != "battery" and kind != "clim":
 		return false
@@ -1135,6 +1306,8 @@ func _carried_placable() -> bool:
 	var kind := str(player.carried_item.get("kind", ""))
 	if kind == "server":
 		return player.carried_item.has("os")
+	# La nourriture pour chat n'est PAS plaçable au sol : elle se verse dans
+	# la gamelle (interaction E) — pas de cases vertes de pose.
 	return kind == "furniture" or kind == "battery" or kind == "clim"
 
 
@@ -1223,6 +1396,9 @@ func _spawn_server(item: Dictionary, cell: Vector2i) -> ServerUnit:
 	var s := ServerUnit.new()
 	s.item = item.duplicate(true)
 	s.os_id = str(item.get("os", ""))
+	# L'usure suit le matériel : un serveur déranché puis reposé garde son état.
+	s.wear = clampf(float(item.get("wear", 0.0)), 0.0, 1.0)
+	s.broken = bool(item.get("broken", false))
 	s.name = "Server_%d_%d" % [cell.x, cell.y]
 	s.cell = cell
 	s.position = _cell_center(cell)
@@ -1322,6 +1498,9 @@ func _spawn_server_mounted(item: Dictionary, rack: RackUnit) -> ServerUnit:
 	var s := ServerUnit.new()
 	s.item = item.duplicate(true)
 	s.os_id = str(item.get("os", ""))
+	# L'usure suit le matériel : un serveur déranché puis remonté garde son état.
+	s.wear = clampf(float(item.get("wear", 0.0)), 0.0, 1.0)
+	s.broken = bool(item.get("broken", false))
 	s.name = "Server_rack_%d" % rack.mounted.size()
 	s.cell = rack.cell
 	s.position = rack.position
@@ -1356,7 +1535,8 @@ func _recompute_stats() -> void:
 		# Les clims consomment de l'électricité (elles apparaissent sur les factures)
 		total_watts += int(c.item.get("watts", 0))
 	GameManager.total_clients = total_clients
-	GameManager.income_per_sec = total_income  # pare-feu = défense, pas de boost
+	# Les contrats clients (app Mail) garantissent des revenus par mois.
+	GameManager.income_per_sec = total_income + GameManager.contract_income_per_sec()
 	GameManager.heat_total = total_heat
 	GameManager.cooling_total = cooling
 	GameManager.overheated = GameManager.temperature >= GameManager.CRITICAL_TEMP
@@ -1440,11 +1620,25 @@ func _on_tick() -> void:
 		total_watts += int(c.item.get("watts", 0))
 	GameManager.cooling_total = cooling
 
-	var income := total_income  # le pare-feu n'augmente pas les revenus
+	# Les contrats clients (app Mail) garantissent des revenus mensuels :
+	# ajoutés indépendamment des serveurs (même en surchauffe/incident).
+	var income := total_income + GameManager.contract_income_per_sec()  # le pare-feu n'augmente pas les revenus
 	# Les FACTURES (électricité + mensualité fibre) sont déduites du solde :
 	# elles apparaissent sur le bureau (BillsUI) — économie plus réaliste.
 	var costs := GameManager.electric_cost_per_sec() + GameManager.abo_fee_per_sec()
 	GameManager.cash += income - costs
+
+	# Usure : plus un serveur TOURNE, plus il s'use et risque de tomber en
+	# panne (maintenance E pour réparer). Un serveur à l'arrêt (incident,
+	# surchauffe, panne) ne s'use pas.
+	for s in placed_servers:
+		if not _server_running(s):
+			continue
+		s.wear = clampf(s.wear + WEAR_PER_TICK, 0.0, 1.0)
+		if randf() < s.wear * BREAK_CHANCE:
+			s.broken = true
+			s.queue_redraw()
+			hud.toast("%s est tombé en PANNE ! Approche-toi et appuie sur E (maintenance %d $)." % [s.item.get("name", "Serveur"), _repair_cost(s)])
 	# Température : chaleur des serveurs − refroidissement des clims, plus une
 	# petite dissipation passive (la pièce finit toujours par refroidir un peu
 	# — évite le softlock à 400 °C sans clim). Jamais sous la température ambiante.
@@ -1466,8 +1660,9 @@ func _on_tick() -> void:
 func _server_running(s: ServerUnit) -> bool:
 	## Un serveur PRODUIT-IL en ce moment ? Délègue la règle (incidents) à
 	## GameManager.server_stopped — source unique de vérité, aussi utilisée par
-	## l'affichage des serveurs (server_unit) et le Monitor.
-	return s.configured() and not GameManager.server_stopped(s)
+	## l'affichage des serveurs (server_unit) et le Monitor. Un serveur en
+	## PANNE ne produit plus rien non plus.
+	return s.configured() and not s.broken and not GameManager.server_stopped(s)
 
 
 func _update_incidents() -> void:
@@ -1539,14 +1734,19 @@ func _on_random_event() -> void:
 	_arm_event_timer()
 
 
-func _spawn_garage_cat() -> void:
+func _spawn_garage_cat(adopted := false) -> void:
 	## Un chat du quartier entre par la porte de livraison et se balade.
+	## adopted=true : chat adopté (nourriture versée) -> il reste pour toujours.
 	if is_instance_valid(garage_cat):
 		return  # déjà un chat en train de traîner
 	garage_cat = GarageCat.new()
 	garage_cat.name = "GarageCat"
+	garage_cat.adopted = adopted
 	add_child(garage_cat)
-	hud.toast("Un chat du quartier est entré dans le garage… il inspecte tes serveurs.")
+	if adopted:
+		hud.toast("Le chat ronronne près de toi. Il est chez lui, ici.")
+	else:
+		hud.toast("Un chat du quartier est entré dans le garage… il inspecte tes serveurs.")
 
 
 func _surprise_delivery() -> void:

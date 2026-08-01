@@ -229,6 +229,7 @@ func _render_shop() -> void:
 	var locals: Array = []
 	var upgrades: Array = []
 	var abos: Array = []
+	var goodies: Array = []
 	for item in ShopCatalog.shop_items():
 		# Les PARTENARIATS ont leur propre onglet (https://partenaires.bian/) :
 		# ils ne s'affichent pas dans la boutique matériel.
@@ -240,6 +241,7 @@ func _render_shop() -> void:
 			"local": locals.append(item)
 			"upgrade": upgrades.append(item)
 			"abo": abos.append(item)
+			"catfood": goodies.append(item)
 
 	page_box.add_child(_section_title("Serveurs d'occasion"))
 	var hint := Label.new()
@@ -285,11 +287,21 @@ func _render_shop() -> void:
 	page_box.add_child(_section_title("Abonnements Internet"))
 	for item in abos:
 		page_box.add_child(_card(item))
+	if not goodies.is_empty():
+		page_box.add_child(_section_title("Vie du garage"))
+		var goodie_hint := Label.new()
+		goodie_hint.text = "Verse la nourriture dans la GAMELLE (à côté de l'étagère) pour adopter le chat du garage."
+		goodie_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		goodie_hint.add_theme_font_size_override("font_size", 12)
+		goodie_hint.add_theme_color_override("font_color", Color(1.0, 0.85, 0.6))
+		page_box.add_child(goodie_hint)
+		for item in goodies:
+			page_box.add_child(_card(item))
 
 	# --- Vendre son stock (étagère du local courant) ---
 	page_box.add_child(_section_title("Vendre ton stock"))
 	var sell_hint := Label.new()
-	sell_hint.text = "Dépose du matériel sur l'étagère et revends quand le marché est HAUT : reprise à %d%% du prix DU JOUR (+10%% si un OS est déjà installé sur un serveur)." % int(ShopCatalog.RESALE_RATIO * 100)
+	sell_hint.text = "Dépose du matériel sur l'étagère et revends quand le marché est HAUT : reprise à %d%% du prix DU JOUR (+10%% si un OS est déjà installé sur un serveur). L'état compte aussi : un serveur usé (-25%%) ou en panne (-50%%) se revend moins cher." % int(ShopCatalog.RESALE_RATIO * 100)
 	sell_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	sell_hint.add_theme_font_size_override("font_size", 12)
 	sell_hint.add_theme_color_override("font_color", Color(1.0, 0.85, 0.5))
@@ -976,7 +988,7 @@ func _buy(item: Dictionary) -> void:
 		return
 	GameManager.cash -= price
 	match kind:
-		"server", "furniture", "battery", "clim":
+		"server", "furniture", "battery", "clim", "catfood":
 			GameManager.deliveries.append(item.duplicate(true))
 			_flash("Commande passée ! Livraison à l'extérieur du garage (porte du bas).")
 		"upgrade":

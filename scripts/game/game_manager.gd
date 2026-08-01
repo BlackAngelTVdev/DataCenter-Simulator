@@ -88,6 +88,18 @@ var pending_teleport := -1
 ## Colis achetés sur Tech'Occase, en attente de ramassage à la livraison.
 var deliveries: Array = []
 
+## Le chat : la gamelle a-t-elle reçu de la nourriture ? Le chat est-il
+## adopté (habitué du garage, il ne repart plus) ?
+var cat_fed := false
+var cat_adopted := false
+
+## Contrats clients signés via l'app Mail : {contract_id: {"name":…, "income_per_month":…}}.
+## Revenus GARANTIS par mois (ajoutés au tick, indépendamment des serveurs).
+var contracts := {}
+
+## E-mails déjà reçus dans l'app Mail (id -> true) : ils ne réapparaissent pas.
+var mails_seen := {}
+
 ## Statistiques recalculées par le garage à chaque tick (affichage HUD).
 var total_clients := 0
 var income_per_sec := 0.0
@@ -121,6 +133,10 @@ func reset() -> void:
 	worlds = {0: {}, 1: {}}
 	pending_teleport = -1
 	deliveries.clear()
+	cat_fed = false
+	cat_adopted = false
+	contracts = {}
+	mails_seen = {}
 	total_clients = 0
 	income_per_sec = 0.0
 	heat_total = 0.0
@@ -146,6 +162,19 @@ func owns(id: String) -> bool:
 func mark_owned(id: String) -> void:
 	## Marque un achat unique comme fait (ne pourra plus être racheté).
 	owned[id] = true
+
+
+func contract_income_per_sec() -> float:
+	## Revenus garantis des contrats clients, ramenés par seconde.
+	var total := 0.0
+	for cid in contracts:
+		total += float(contracts[cid].get("income_per_month", 0))
+	return total / SECONDS_PER_MONTH
+
+
+func accept_contract(cid: String, name: String, income_per_month: int) -> void:
+	## Signe un contrat (app Mail) : revenus garantis par mois.
+	contracts[cid] = {"name": name, "income_per_month": income_per_month}
 
 
 func bandwidth_limit() -> int:
