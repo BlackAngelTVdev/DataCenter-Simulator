@@ -694,6 +694,11 @@ func _nearest_interactable(max_dist: float) -> Node:
 			# doit poser l'objet, pas allumer la radio.
 			if it.kind == "radio" and _carried_placable():
 				continue
+			# La table d'assemblage non plus : c'est une zone de pose fréquente
+			# (à côté de l'établi) — porter un objet plaçable doit POSER, pas
+			# ouvrir la table (même logique que le bureau / la radio).
+			if it.kind == "assembly" and _carried_placable():
+				continue
 		var d := player.global_position.distance_to(it.global_position)
 		if d <= best_d:
 			best_d = d
