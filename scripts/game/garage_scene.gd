@@ -270,7 +270,7 @@ func _route_or_load() -> void:
 		var meta := SaveManager.slot_meta(SaveManager.pending_slot)
 		var saved_loc := int(meta.get("location", 0))
 		if saved_loc != location_id:
-			get_tree().change_scene_to_file(LOCAL2_SCENE if saved_loc == 1 else GARAGE_SCENE)
+			LoadingScreen.go_to(self, LOCAL2_SCENE if saved_loc == 1 else GARAGE_SCENE, "Chargement — " + _loc_name())
 			return
 	GameSave.load_into(self)
 	_place_player_at_saved_pos()
@@ -1295,7 +1295,8 @@ func _teleport(target: int) -> void:
 	var scene: String = Locations.place(target).get("scene", "")
 	if scene.is_empty():
 		scene = LOCAL2_SCENE if target == 1 else GARAGE_SCENE
-	get_tree().change_scene_to_file(scene)
+	var dest_name := str(Locations.place(target).get("name", "Local"))
+	LoadingScreen.go_to(self, scene, "Trajet en voiture — " + dest_name)
 
 
 func _other_world_id() -> int:
@@ -2533,7 +2534,7 @@ func _on_quit_requested() -> void:
 	# Sauvegarde automatique au retour au menu : on ne perd jamais sa progression.
 	_autosave()
 	get_tree().paused = false
-	get_tree().change_scene_to_file(MENU_SCENE)
+	LoadingScreen.go_to(self, MENU_SCENE, "Retour au menu")
 
 
 func _notification(what: int) -> void:

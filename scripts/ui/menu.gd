@@ -128,11 +128,14 @@ func _on_new_game() -> void:
 
 func _go_to_game() -> void:
 	## Ouvre directement la scène du local où la sauvegarde a été faite
-	## (le garage par défaut pour une nouvelle partie).
+	## (le garage par défaut pour une nouvelle partie), avec l'écran de
+	## chargement (barre de progression + blagues IT).
 	var loc := 0
 	if SaveManager.pending_slot >= 0:
 		loc = int(SaveManager.slot_meta(SaveManager.pending_slot).get("location", 0))
-	get_tree().change_scene_to_file(LOCAL2_SCENE if loc == 1 else MAIN_SCENE)
+	var dest := LOCAL2_SCENE if loc == 1 else MAIN_SCENE
+	var place_name := "GARAGE DC-1" if loc == 0 else "LOCAL 2 — DATA HALL"
+	LoadingScreen.go_to(self, dest, "Chargement — " + place_name)
 
 
 func _on_saves() -> void:
