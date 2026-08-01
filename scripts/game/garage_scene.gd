@@ -936,7 +936,7 @@ func _pet_cat(cat: GarageCat) -> void:
 	# Succès vérifié immédiatement (le tick le referait de toute façon).
 	for a in Achievements.check_all():
 		hud.toast("SUCCÈS DÉBLOQUÉ : %s — %s" % [a.get("name", "?"), a.get("desc", "")])
-	hud.toast("Le chat ronronne de plaisir ! (caresses : %d)" % GameManager.cat_pets)
+	hud.toast("Le chat ronronne de plaisir !")
 
 
 func _bowl_interact() -> void:
