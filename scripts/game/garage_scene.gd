@@ -452,6 +452,7 @@ func _build_interactables() -> void:
 		bench_unit.name = "BenchPro"
 		bench_unit.position = _cell_center(_loc_bench_cell())
 		add_child(bench_unit)
+		bench_unit.bay_finished.connect(_on_bay_finished)
 		interactables.append(bench_unit)
 
 		# Le Data Hall a SON point de livraison (bas de salle) : les commandes
@@ -536,8 +537,7 @@ func _build_ui() -> void:
 
 	install_ui = OSInstallUI.new()
 	install_ui.name = "OSInstallUI"
-	install_ui.installed.connect(_on_os_installed)
-	install_ui.repaired.connect(_on_server_repaired)
+	install_ui.started.connect(_on_install_started)
 	add_child(install_ui)
 
 	rack_ui = RackUI.new()
@@ -983,6 +983,12 @@ func _refresh_bowl_food() -> void:
 
 
 func _bench_interact() -> void:
+	# Un travail tourne déjà sur l'établi du garage : il continue TOUT SEUL en
+	# arrière-plan (GameManager.bench_job) — on ne peut pas en lancer un second
+	# (le slot reste occupé jusqu'à la fin).
+	if install_ui.busy():
+		hud.toast("L'établi est occupé — l'installation/réparation en cours continue toute seule (un toast te préviendra).")
+		return
 	if player.is_carrying():
 		var item := player.carried_item
 		# Un serveur EN PANNE s'ouvre aussi à l'établi : mode RÉPARATION
@@ -1171,7 +1177,7 @@ func _bench_repair(bay: int) -> void:
 		return
 	if bench_unit.start_repair(bay):
 		GameManager.cash -= cost
-		bench_ui.refresh()
+		bench_ui.close()  # le panneau se ferme : la baie travaille TOUTE SEULE
 		hud.toast("Réparation en cours… (~2 min, baie %d occupée — l'autre reste libre)" % (bay + 1))
 
 
@@ -1179,7 +1185,7 @@ func _bench_install(bay: int, os_id: String) -> void:
 	if bench_unit == null:
 		return
 	if bench_unit.start_install(bay, os_id):
-		bench_ui.refresh()
+		bench_ui.close()  # le panneau se ferme : la baie travaille TOUTE SEULE
 		# Le nom vient de l'OS (data/os_list.gd) OU de la licence proxy
 		# (data/proxy_list.gd) selon ce qui s'installe.
 		var proxy := ProxyList.get_proxy(os_id)
@@ -2057,6 +2063,7 @@ func _proxy_boost() -> int:
 func _on_tick() -> void:
 	tick += 1
 	_update_incidents()
+	_process_bench_job()
 	# E-mails aléatoires (pub / offres / newsletters) : cooldown puis chance de
 	# départ — la boîte Mail se remplit au fil de la partie (les deux locaux
 	# partagent le script, l'arrivée fonctionne partout).
@@ -2260,14 +2267,90 @@ func _online_servers() -> int:
 	return n
 
 
-func _on_os_installed(_os_id: String) -> void:
-	hud.toast("Logiciel installé ! Maintenant pose le serveur dans le garage (E).")
+func _on_install_started(text: String) -> void:
+	## Le travail démarre à l'établi du garage : le panneau s'est fermé, on
+	## prévient que ça tourne en arrière-plan (le joueur peut vaquer à ses
+	## occupations).
+	hud.toast(text)
 
 
-func _on_server_repaired() -> void:
-	## Fin de la réparation à l'établi du garage : le serveur porté est de
-	## nouveau opérationnel — il ne reste qu'à le remonter (armoire ou sol).
-	hud.toast("Serveur réparé ! Remonte-le en armoire (E puis clic sur une baie) pour relancer les revenus.")
+func _process_bench_job() -> void:
+	## Travail à l'établi du GARAGE (GameManager.bench_job) : le temps défile
+	## (1 tick = 1 s), même si on est dans l'AUTRE local (les deux locaux
+	## partagent ce script). À la fin, le résultat s'applique au serveur porté
+	## et un toast prévient — on n'est jamais bloqué devant l'établi.
+	if GameManager.bench_job.is_empty():
+		return
+	GameManager.bench_job["seconds_left"] = float(GameManager.bench_job.get("seconds_left", 0.0)) - 1.0
+	if float(GameManager.bench_job.get("seconds_left", 0.0)) <= 0.0:
+		_finish_bench_job()
+
+
+func _finish_bench_job() -> void:
+	## Fin du travail à l'établi du garage : le résultat (OS installé OU
+	## serveur réparé) s'applique au serveur porté (le job garde sa référence).
+	var job: Dictionary = GameManager.bench_job
+	GameManager.bench_job = {}
+	var mode := str(job.get("mode", ""))
+	var item: Dictionary = job.get("item", {})
+	if item.is_empty():
+		return
+	if mode == "repair":
+		item["broken"] = false
+		item["wear"] = clampf(float(item.get("wear", 0.0)) * 0.3, 0.0, 1.0)
+		hud.toast("Serveur réparé ! Remonte-le en armoire (E puis clic sur une baie) pour relancer les revenus.")
+	else:
+		var os_id := str(job.get("os_id", ""))
+		var proxy := ProxyList.get_proxy(os_id)
+		if not proxy.is_empty():
+			item["proxy"] = os_id
+			item["proxy_name"] = str(proxy.get("name", os_id))
+		else:
+			item["os"] = os_id
+			item["os_name"] = str(OSList.get_os(os_id).get("name", os_id))
+		hud.toast("Logiciel installé ! Maintenant pose le serveur dans le garage (E).")
+	# Après une sauvegarde/rechargement, le serveur porté et celui du job sont
+	# deux dicts distincts mais identiques : on resynchronise la main. PAS de
+	# comparaison profonde (carried != item) ici : après un reload les deux
+	# dicts sont égaux en contenu mais pas la même référence — on applique
+	# donc toujours les clés (no-op sans danger si c'est le même objet).
+	var carried := player.carried_item
+	if carried.get("kind", "") == "server" and str(carried.get("id", "")) == str(item.get("id", "")):
+		for key in item:
+			carried[key] = item[key]
+	# Cas 2 : le serveur n'est plus porté (déposé sur l'étagère pendant le
+	# travail, ou le joueur tient un AUTRE serveur). Le job garde la référence
+	# du dict d'origine, devenue orpheline après le duplicate() du dépôt : on
+	# applique le résultat à la copie de l'étagère (même id) pour ne pas perdre
+	# la réparation/l'OS.
+	elif storage_unit != null:
+		for i in range(storage_unit.items.size()):
+			var it: Dictionary = storage_unit.items[i]
+			if it.get("kind", "") == "server" and str(it.get("id", "")) == str(item.get("id", "")):
+				for key in item:
+					it[key] = item[key]
+				storage_unit.queue_redraw()
+				break
+
+
+func _on_bay_finished(bay: int, is_repair: bool) -> void:
+	## Une baie de l'établi Pro (Data Hall) a terminé son travail (installation
+	## d'OS ou réparation) pendant que le joueur vaquait à ses occupations : on
+	## le prévient pour qu'il revienne récupérer le serveur.
+	if bench_unit == null or bay < 0 or bay >= bench_unit.bays.size():
+		return
+	var b: Dictionary = bench_unit.bays[bay]
+	if is_repair:
+		hud.toast("Baie %d : serveur réparé ! Reviens le récupérer (E sur l'établi)." % (bay + 1))
+		return
+	var os_id := str(b.get("os_id", ""))
+	var proxy_id := str(b.get("proxy_id", ""))
+	var name := "Logiciel"
+	if not os_id.is_empty():
+		name = str(OSList.get_os(os_id).get("name", os_id))
+	elif not proxy_id.is_empty():
+		name = str(ProxyList.get_proxy(proxy_id).get("name", proxy_id))
+	hud.toast("Baie %d : %s installé ! Reviens le récupérer (E sur l'établi)." % [bay + 1, name])
 
 
 # ------------------------------------------------------------------ Événements aléatoires (vie du garage)

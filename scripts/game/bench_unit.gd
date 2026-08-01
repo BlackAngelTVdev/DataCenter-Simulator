@@ -12,6 +12,8 @@ const INSTALL_TIME := 4.0  # secondes par baie
 const REPAIR_TIME := 120.0  # réparation d'un serveur en panne : ~2 min (la baie est occupée)
 const SIZE := Vector2(66, 30)
 
+signal bay_finished(bay: int, is_repair: bool)  # une baie a terminé son travail
+
 var cell := Vector2i(4, 12)  # case de la grille (sauvegarde)
 var bays: Array = []
 
@@ -40,7 +42,8 @@ func _empty_bay() -> Dictionary:
 
 func _process(delta: float) -> void:
 	var changed := false
-	for bay in bays:
+	for i in range(bays.size()):
+		var bay: Dictionary = bays[i]
 		if bay.get("repairing", false):
 			# RÉPARATION d'un serveur en panne : ~2 min, la baie est occupée
 			# (l'autre baie reste libre — installations et réparations parallèles).
@@ -50,6 +53,7 @@ func _process(delta: float) -> void:
 				bay["repairing"] = false
 				bay["repaired"] = true
 				changed = true
+				bay_finished.emit(i, true)
 		elif bay.get("installing", false):
 			bay["progress"] = bay.get("progress", 0.0) + delta / INSTALL_TIME
 			if bay["progress"] >= 1.0:
@@ -61,6 +65,7 @@ func _process(delta: float) -> void:
 				else:
 					bay["os_id"] = bay.get("pending_os", "")
 				changed = true
+				bay_finished.emit(i, false)
 	if changed:
 		queue_redraw()
 
