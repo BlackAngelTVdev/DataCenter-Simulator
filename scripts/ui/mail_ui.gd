@@ -91,11 +91,20 @@ func refresh() -> void:
 		return
 	for child in _list_box.get_children():
 		child.queue_free()
-	# Badge « nouveaux » : les e-mails reçus mais pas encore lus.
+	# Badge « nouveaux » : les e-mails reçus mais pas encore lus (clients ET
+	# e-mails aléatoires). available() exclut déjà les vus ; pour les e-mails
+	# aléatoires, on ne compte que ceux dont l'id n'est pas dans mails_seen.
 	if is_instance_valid(_title):
 		var unseen := MailPool.available().size()
+		for m in GameManager.received_mails:
+			if not GameManager.mails_seen.has(str(m["id"])):
+				unseen += 1
 		_title.text = "Mail — boîte de réception" if unseen == 0 else "Mail — boîte de réception (%d nouveau%s)" % [unseen, "x" if unseen > 1 else ""]
+	# Les e-mails de clients (pool statique) + les e-mails aléatoires reçus
+	# (pub / offres, stockés dans GameManager.received_mails).
 	var mails := MailPool.all_unlocked()
+	for m in GameManager.received_mails:
+		mails.append(m)
 	if mails.is_empty():
 		var empty := Label.new()
 		empty.text = "Boîte de réception vide. Les clients t'écriront ici."
