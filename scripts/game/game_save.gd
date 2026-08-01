@@ -36,6 +36,7 @@ static func persist(garage: GarageScene) -> bool:
 		"deliveries": GameManager.deliveries.duplicate(true),
 		"cat_fed": GameManager.cat_fed,
 		"cat_adopted": GameManager.cat_adopted,
+		"cat_pets": GameManager.cat_pets,
 		"contracts": GameManager.contracts.duplicate(true),
 		"mails_seen": GameManager.mails_seen.keys(),
 		"achievements": GameManager.achievements.keys(),
@@ -99,6 +100,7 @@ static func load_into(garage: GarageScene) -> void:
 	GameManager.location_unlocked = bool(data.get("location_unlocked", false))
 	GameManager.cat_fed = bool(data.get("cat_fed", false))
 	GameManager.cat_adopted = bool(data.get("cat_adopted", false))
+	GameManager.cat_pets = int(data.get("cat_pets", 0))
 	# Contrats clients signés (app Mail) : revenus garantis par mois.
 	GameManager.contracts = {}
 	var contracts_raw: Variant = data.get("contracts", {})

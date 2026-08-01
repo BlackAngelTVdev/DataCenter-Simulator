@@ -37,6 +37,11 @@ const LIST := [
 		"name": "Vu 5 chats",
 		"desc": "Le chat du quartier est venu te voir 5 fois.",
 	},
+	{
+		"id": "ach_pet_cat",
+		"name": "50 000 caresses",
+		"desc": "Caresse le chat 50 000 fois. (Il n'aime pas trop qu'on insiste… patience !)",
+	},
 ]
 
 
@@ -69,4 +74,6 @@ static func _unlocked(id: String) -> bool:
 			return GameManager.ddos_survived
 		"ach_cats":
 			return GameManager.cats_seen >= 5
+		"ach_pet_cat":
+			return GameManager.cat_pets >= 50000
 	return false
