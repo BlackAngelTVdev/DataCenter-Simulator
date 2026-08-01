@@ -1,15 +1,11 @@
 class_name HUD
 extends CanvasLayer
-## HUD : invite d'interaction « E — … » (bas centre) + centre de NOTIFICATIONS
-## (cloche en haut à gauche). Chaque toast() devient une notification dans la
-## cloche : un clic ouvre le panneau, chaque entrée a un bouton « Fait » pour
-## la faire disparaître. Les notifications vivent dans GameManager
-## (elles survivent aux téléportations entre locaux).
 
+# HUD : invite d'interaction « E — … » (bas centre) + centre de NOTIFICATIONS
 var prompt_label: Label
 var prompt_panel: PanelContainer
 
-# --- Cloche de notifications ---
+# Cloche de notifications
 var bell_btn: Button
 var badge_label: Label
 var notif_panel: PanelContainer
@@ -33,7 +29,7 @@ func _label(font_size: int, color: Color) -> Label:
 
 
 func _build() -> void:
-	# --- Invite d'interaction (bas centre) ---
+# Invite d'interaction (bas centre)
 	prompt_panel = PanelContainer.new()
 	prompt_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	prompt_panel.offset_bottom = -40.0
@@ -47,7 +43,7 @@ func _build() -> void:
 	prompt_panel.add_child(prompt_label)
 	add_child(prompt_panel)
 
-	# --- Cloche de notifications (haut gauche) ---
+# Cloche de notifications (haut gauche)
 	bell_btn = Button.new()
 	bell_btn.icon = BakedAssets.tex("icon_bell")
 	bell_btn.expand_icon = true
@@ -73,7 +69,7 @@ func _build() -> void:
 	badge_label.add_theme_stylebox_override("normal", UITheme.tinted(Color(0.82, 0.15, 0.15), 4, 4))
 	bell_btn.add_child(badge_label)
 
-	# --- Panneau des notifications ---
+# Panneau des notifications
 	notif_panel = PanelContainer.new()
 	notif_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	notif_panel.offset_left = 12.0

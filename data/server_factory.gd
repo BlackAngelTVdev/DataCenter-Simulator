@@ -1,24 +1,7 @@
 class_name ServerFactory
 extends RefCounted
-## ============================================================
-##  SERVERFACTORY — configurateur de serveurs NEUFS (Data Hall)
-## ============================================================
-##  Le site « Neuf » du PC Pro ne vend PAS de machines pré-montées :
-##  on choisit un CHÂSSIS, un CPU, de la RAM et des disques, et le
-##  serveur (clients max, revenus/client, watts, chaleur) découle
-##  de la config. L'achat produit un KIT livré à la livraison, à
-##  assembler sur la TABLE D'ASSEMBLAGE (Data Hall) avant d'installer
-##  un OS à l'établi.
-##
-##  Ajouter une option = copier-coller un bloc { ... } dans la liste.
-##    id     : identifiant unique
-##    name   : nom affiché
-##    slots  : clients hébergés EN PLUS apportés par la pièce
-##    watts  : consommation électrique EN PLUS (W)
-##    heat   : chaleur produite EN PLUS
-##    price  : coût de la pièce ($)
-##    (cpu uniquement) income : $ par client et par seconde de base
 
+# SERVERFACTORY — configurateur de serveurs NEUFS (Data Hall)
 const CHASSIS := [
 	{
 		"id": "ch_1u",

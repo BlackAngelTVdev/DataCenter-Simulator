@@ -1,21 +1,8 @@
 class_name Locations
 extends RefCounted
-## ============================================================
-##  CATALOGUE DES LIEUX — la voiture (menu « Où aller ? »)
-## ============================================================
-##  C'est ICI qu'on ajoute facilement un nouveau local au jeu !
-##  Copie-colle un bloc { ... } dans PLACES, change les valeurs,
-##  relance : la voiture propose automatiquement la destination.
-##
-##  Champs :
-##    id      : identifiant du local (0 = garage DC-1, 1 = Local 2…)
-##              DOIT correspondre à l'@export location_id de la scène.
-##    name    : nom affiché dans le menu voiture
-##    desc    : description affichée
-##    scene   : scène à charger (res://scenes/game/…)
-##    locked  : true si le lieu est verrouillé au départ
-##              (le déblocage se gère dans is_unlocked / GameManager)
 
+# Catalogue des lieux (menu voiture). Ajoute un local : copie-colle un bloc,
+# change les valeurs, relance — la voiture le propose automatiquement.
 const PLACES := [
 	{
 		"id": 0,

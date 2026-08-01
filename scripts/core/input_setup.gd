@@ -1,8 +1,6 @@
 extends Node
-## Autoload : enregistre les actions de jeu au démarrage.
-## Déplacement WASD + ZQSD (les deux fonctionnent), interaction avec E.
-## PAS de class_name (c'est un autoload).
 
+# Autoload : enregistre les actions de jeu au démarrage.
 const ACTIONS := {
 	"move_up": [KEY_W, KEY_Z],
 	"move_down": [KEY_S],

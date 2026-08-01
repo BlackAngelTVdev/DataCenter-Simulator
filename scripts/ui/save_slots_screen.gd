@@ -1,9 +1,7 @@
 class_name SaveSlotsScreen
 extends CanvasLayer
-## Écran de gestion des sauvegardes : liste des emplacements avec leurs infos
-## (argent, date), boutons Charger / Supprimer, et Retour.
-## CanvasLayer + CenterContainer : toujours centré, quelle que soit la résolution.
 
+# Écran de gestion des sauvegardes : liste des emplacements avec leurs infos
 signal load_requested(slot: int)
 signal new_game_requested
 

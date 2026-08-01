@@ -1,9 +1,7 @@
 class_name PauseMenu
 extends CanvasLayer
-## Menu pause (touche Échap) : Reprendre, Sauvegarder, Ouvrir en ligne, Option,
-## Quitter. Met le jeu en pause (get_tree().paused) — la couche reste active
-## grâce à PROCESS_MODE_ALWAYS. CanvasLayer + CenterContainer : toujours centré.
 
+# Menu pause (touche Échap) : Reprendre, Sauvegarder, Ouvrir en ligne, Option,
 signal save_requested
 signal quit_requested
 

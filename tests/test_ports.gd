@@ -1,12 +1,6 @@
 extends Node
-## Test de la GESTION RÉSEAU COMPLEXE du DATA HALL (local 2) :
-##   (1) Au DATA HALL, un switch saturé en PORTS laisse les derniers serveurs
-##       montés DÉBRANCHÉS (aucun revenu) — la règle est dans server_stopped.
-##   (2) Au GARAGE (chill), la même armoire ne limite pas les ports : tous les
-##       serveurs restent branchés.
-##   (3) Le pare-feu a une CAPACITÉ (FIREWALL_CAPACITY) au Data Hall : au-delà,
-##       les clients excédentaires fuient pendant une attaque DDoS.
 
+# Test de la GESTION RÉSEAU COMPLEXE du DATA HALL (local 2)
 func _ready() -> void:
 	await get_tree().process_frame
 	var garage := get_parent() as GarageScene

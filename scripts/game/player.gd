@@ -1,10 +1,7 @@
 class_name Player
 extends CharacterBody2D
-## Le personnage : se déplace en WASD/ZQSD, porte un colis au-dessus de la
-## tête, interagit avec son environnement grâce à la touche E.
-## Le CORPS est une IMAGE cuite (player.png) ; le colis porté est un sprite
-## superposé teinté par la couleur de l'objet + son nom en texte.
 
+# Le personnage : se déplace en WASD/ZQSD, porte un colis au-dessus de la
 const SPEED := 260.0
 const RADIUS := 11.0
 const HEIGHT := 26.0
@@ -52,7 +49,7 @@ func _physics_process(_delta: float) -> void:
 
 
 func _draw() -> void:
-	# --- Runtime : colis porté au-dessus de la tête (sprite + nom) ---
+# Runtime : colis porté au-dessus de la tête (sprite + nom)
 	if _parcel != null:
 		_parcel.visible = is_carrying()
 		if is_carrying():

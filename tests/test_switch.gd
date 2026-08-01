@@ -1,11 +1,6 @@
 extends Node
-## Test du SWITCH RÉSEAU — exécuté comme SCÈNE avec un garage parent.
-##
-## Vérifie que : (1) un serveur monté dans une armoire SANS switch ne rapporte
-## rien (server_stopped -> revenu 0), (2) une fois le switch installé il rapporte,
-## (3) le switch est sérialisé/restauré avec le rack, (4) un switch de qualité
-## réduit la chaleur des serveurs de l'armoire.
 
+# Test du SWITCH RÉSEAU — exécuté comme SCÈNE avec un garage parent.
 func _ready() -> void:
 	await get_tree().process_frame
 	var garage := get_parent() as GarageScene

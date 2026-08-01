@@ -1,15 +1,7 @@
 class_name OSBrowser
 extends PanelContainer
-## Fenêtre « Renard » : le navigateur web du faux OS.
-##  • https://tech-occase.bian/   : boutique Tech'Occase (achat de matériel)
-##  • https://monitor.bian/       : MONITOR — supervision en direct de la
-##    connexion (saturée ou non, clients / bande passante) et des serveurs
-##    (charge, saturation, revenus). Rafraîchi chaque seconde.
-##  • https://partenaires.bian/   : BUREAU DES PARTENARIATS : signer des deals
-##    constructeurs (achat moins cher / revenus clients réduits), page dédiée.
-## Les données viennent de la scène garage courante (placed_servers) et de
-## GameManager (stats recalculées au tick).
 
+# Fenêtre « Renard » : le navigateur web du faux OS.
 signal closed
 signal purchased  # un achat de matériel vient d'être passé (rafraîchit les caisses)
 
@@ -28,12 +20,12 @@ var drag_handle: Control  # poignée de drag (déplacement de la fenêtre)
 # Chaque entrée = { "btn": Button, "item": Dictionary } dans le même ordre que le rendu.
 var buy_entries: Array = []
 
-# --- Navigation ---
+# Navigation
 var history: Array = [SITE_URL]
 var history_idx := 0
 var current_page := "shop"  # "shop" | "monitor" | "partnership"
 
-# --- Références monitor (rafraîchies sans tout reconstruire) ---
+# Références monitor (rafraîchies sans tout reconstruire)
 var mon_conn_bar: ProgressBar
 var mon_conn_label: Label
 var mon_conn_status: Label
@@ -71,7 +63,7 @@ func _ready() -> void:
 	_render_page()
 
 
-# ------------------------------------------------------------------ UI
+# UI
 func _btn(text: String, min_w: float) -> Button:
 	## Petit bouton de barre d'outils (< > X) : stylé comme le reste de l'UI.
 	var b := Button.new()
@@ -156,7 +148,7 @@ func _build_page() -> Control:
 	return scroll
 
 
-# ------------------------------------------------------------------ Navigation
+# Navigation
 func _navigate(text: String) -> void:
 	var url := text.strip_edges()
 	if url.is_empty():
@@ -197,7 +189,7 @@ func _garage() -> GarageScene:
 	return get_tree().current_scene as GarageScene
 
 
-# ------------------------------------------------------------------ Routage
+# Routage
 func _render_page() -> void:
 	var url := (url_edit.text as String).to_lower()
 	if url.contains("monitor"):
@@ -337,7 +329,7 @@ func _render_shop() -> void:
 		for item in decos:
 			page_box.add_child(_card(item))
 
-	# --- Vendre son stock (étagère du local courant) ---
+# Vendre son stock (étagère du local courant)
 	page_box.add_child(_section_title("Vendre ton stock"))
 	var sell_hint := Label.new()
 	sell_hint.text = "Dépose du matériel sur l'étagère et revends quand le marché est HAUT : reprise à %d%% du prix DU JOUR (+10%% si un OS est déjà installé sur un serveur). L'état compte aussi : un serveur usé (-25%%) ou en panne (-50%%) se revend moins cher." % int(ShopCatalog.RESALE_RATIO * 100)
@@ -436,7 +428,7 @@ func _section_title(text: String) -> Label:
 	return l
 
 
-# ------------------------------------------------------------------ Site « Neuf » (configurateur, Data Hall)
+# Site « Neuf » (configurateur, Data Hall)
 # Sélections courantes du configurateur (index dans ServerFactory.CHASSIS/…).
 var _neuf_sel := {"chassis": 0, "cpu": 0, "ram": 0, "disk": 0}
 var _neuf_specs_label: Label
@@ -457,7 +449,7 @@ func _render_neuf_shop() -> void:
 	page_box.add_child(_build_neuf_banner())
 	page_box.add_child(_build_site_links())
 
-	# --- Accessoires pour chat : accessibles de partout (le chat vit au garage) ---
+# Accessoires pour chat : accessibles de partout (le chat vit au garage)
 	page_box.add_child(_section_title("Accessoires pour chat"))
 	var cat_hint := Label.new()
 	cat_hint.text = "Pour que le chat adopté se sente chez lui : pose son arbre, sa litière, son griffoir ou son panier où tu veux au sol — il ira VRAIMENT les utiliser (il grimpe, il gratte, il dort…)."
@@ -468,12 +460,12 @@ func _render_neuf_shop() -> void:
 	for item in ShopCatalog.CAT_STUFF:
 		page_box.add_child(_card(item))
 
-	# --- Abonnements Internet : du NEUF, pas de l'occasion ---
+# Abonnements Internet : du NEUF, pas de l'occasion
 	page_box.add_child(_section_title("Abonnements Internet"))
 	for item in ShopCatalog.ABOS:
 		page_box.add_child(_card(item))
 
-	# --- Vie du garage : la nourriture pour chat est du neuf aussi ---
+# Vie du garage : la nourriture pour chat est du neuf aussi
 	page_box.add_child(_section_title("Vie du garage"))
 	var goodie_hint := Label.new()
 	goodie_hint.text = "Verse la nourriture dans la GAMELLE (à côté de l'étagère) pour adopter le chat du garage."
@@ -639,7 +631,7 @@ func _build_neuf_banner() -> Control:
 	return banner
 
 
-# ------------------------------------------------------------------ Partenariats (onglet dédié)
+# Partenariats (onglet dédié)
 func _render_partnerships() -> void:
 	## Page « Bureau des Partenariats » : les deals constructeurs vivent ICI,
 	## pas dans la boutique matériel (qui reste l'onglet Tech'Occase).
@@ -846,7 +838,7 @@ func _build_partner_banner() -> Control:
 	return banner
 
 
-# ------------------------------------------------------------------ Monitoring
+# Monitoring
 func _render_monitor() -> void:
 	for child in page_box.get_children():
 		child.queue_free()
@@ -872,7 +864,7 @@ func _render_monitor() -> void:
 	page_box.add_child(banner)
 	page_box.add_child(_build_site_links())
 
-	# --- Connexion ---
+# Connexion
 	page_box.add_child(_section_title("Connexion"))
 	var conn_card := PanelContainer.new()
 	conn_card.add_theme_stylebox_override("panel", UITheme.card(12))
@@ -897,7 +889,7 @@ func _render_monitor() -> void:
 
 	page_box.add_child(conn_card)
 
-	# --- Infrastructure (stats globales) ---
+# Infrastructure (stats globales)
 	page_box.add_child(_section_title("Infrastructure"))
 	var infra_card := PanelContainer.new()
 	infra_card.add_theme_stylebox_override("panel", UITheme.card(12))
@@ -917,7 +909,7 @@ func _render_monitor() -> void:
 		_add_infra_row(infra_grid, "Ports réseau", "ports")
 	page_box.add_child(infra_card)
 
-	# --- Serveurs ---
+# Serveurs
 	page_box.add_child(_section_title("Serveurs"))
 	mon_servers_box = VBoxContainer.new()
 	mon_servers_box.add_theme_constant_override("separation", 8)
@@ -1137,7 +1129,7 @@ func _bar_fill(color: Color) -> StyleBoxTexture:
 	return fill
 
 
-# ------------------------------------------------------------------ Boutique
+# Boutique
 func _card(item: Dictionary) -> Control:
 	var card := PanelContainer.new()
 	card.add_theme_stylebox_override("panel", UITheme.card(10))
@@ -1259,7 +1251,7 @@ func _specs(item: Dictionary) -> String:
 	return ""
 
 
-# ------------------------------------------------------------------ Achats
+# Achats
 func _refresh_cash() -> void:
 	if current_page == "monitor":
 		_refresh_monitor()
@@ -1309,7 +1301,7 @@ func _flash(text: String) -> void:
 		flash_timer.start()
 
 
-# ------------------------------------------------------------------ Revente du stock
+# Revente du stock
 func _garage_storage() -> StorageUnit:
 	## L'étagère de stockage du local courant (le navigateur est dans le PC
 	## de ce local, donc on vend le stock d'ICI).

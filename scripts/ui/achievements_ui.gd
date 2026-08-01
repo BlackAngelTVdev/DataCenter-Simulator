@@ -1,9 +1,7 @@
 class_name AchievementsUI
 extends PanelContainer
-## Le panneau « Succès » de BianOS : la liste des trophées débloqués (et ceux
-## qui restent à gagner). Chaque ligne montre le nom, la description et l'état
-## (DÉBLOQUÉ / verrouillé). Rafraîchi à chaque ouverture.
 
+# Le panneau « Succès » de BianOS : la liste des trophées débloqués (et ceux
 signal closed
 
 var _list_box: VBoxContainer

@@ -1,9 +1,7 @@
 class_name BenchUI
 extends CanvasLayer
-## Panneau de l'ÉTABLI PRO (Local 2) : les 2 baies d'installation d'OS.
-## On pose un serveur porté, on choisit un OS : l'installation démarre
-## (4 s, les 2 baies tournent EN PARALLÈLE) et continue même panneau fermé.
 
+# Panneau de l'ÉTABLI PRO (Local 2) : les 2 baies d'installation d'OS.
 signal place_requested
 signal install_requested(bay: int, os_id: String)
 signal repair_requested(bay: int)  # réparer le serveur en panne posé dans la baie

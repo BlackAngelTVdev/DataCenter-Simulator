@@ -1,12 +1,7 @@
 class_name BenchUnit
 extends StaticBody2D
-## L'ÉTABLI PRO du Local 2 : 2 baies d'installation d'OS qui tournent en
-## PARALLÈLE (4 s chacune — plus long que l'établi du garage : machines pro).
-## On pose un serveur, on choisit un OS dans le panneau (BenchUI), et
-## l'installation continue même quand le panneau est fermé.
-## Le CORPS est une IMAGE cuite (bench_pro.png) ; les baies (serveur, LED,
-## progression) sont dessinées avec des textures cuites par-dessus.
 
+# L'ÉTABLI PRO du Local 2 : 2 baies d'installation d'OS qui tournent en
 const BAYS := 2
 const INSTALL_TIME := 4.0  # secondes par baie
 const REPAIR_TIME := 120.0  # réparation d'un serveur en panne : ~2 min (la baie est occupée)
@@ -187,7 +182,7 @@ func restore_bays(data: Variant) -> void:
 
 
 func _draw() -> void:
-	# --- Runtime : baies dessinées avec des textures cuites ---
+# Runtime : baies dessinées avec des textures cuites
 	var bay_w := (SIZE.x - 12.0) / BAYS
 	for i in range(BAYS):
 		var bx := -SIZE.x / 2 + 6 + i * bay_w

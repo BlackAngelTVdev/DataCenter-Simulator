@@ -1,12 +1,6 @@
 extends Node
-## Test du marché fluctuant (Tech'Occase) — exécuté comme SCÈNE (pas besoin du
-## garage : le catalogue + l'autoload GameManager suffisent).
-##
-## Vérifie que les prix varient de façon DÉTERMINISTE (id + jour de marché ->
-## même prix), dans une fourchette raisonnable, et que l'achat comme la revente
-## suivent le prix du jour (c'est ce qui permet de trader : acheter bas, stocker,
-## revendre haut).
 
+# Test du marché fluctuant (Tech'Occase) — exécuté comme SCÈNE (pas besoin du
 func _ready() -> void:
 	await get_tree().process_frame
 	var panda := ShopCatalog.get_item("server_panda")

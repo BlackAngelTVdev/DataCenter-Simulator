@@ -1,8 +1,7 @@
 class_name OSTerminal
 extends PanelContainer
-## Fenêtre Terminal du faux OS « BianOS » : quelques commandes + easter eggs
-## (dont une commande cachée pour du cash en mode debug).
 
+# Fenêtre Terminal du faux OS « BianOS » : quelques commandes + easter eggs
 signal closed
 
 var output: RichTextLabel

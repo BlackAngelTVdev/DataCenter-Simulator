@@ -1,16 +1,8 @@
 class_name Achievements
 extends RefCounted
-## ============================================================
-##  SUCCÈS / TROPHÉES — panneau consultable sur le PC (BianOS)
-## ============================================================
-##  Chaque succès a une condition évaluée contre l'état du jeu
-##  (GameManager). check_all() retourne les succès NOUVELLEMENT
-##  débloqués : le garage les toaste dès qu'ils tombent.
-##  L'état débloqué est sauvegardé (GameManager.achievements).
-##
-##  Pour ajouter un succès : copie-colle un bloc { ... } dans LIST
-##  et ajoute son match dans _unlocked().
 
+# Succès consultables sur le PC (BianOS). Pour en ajouter : copie-colle un
+# bloc dans LIST et ajoute sa condition dans _unlocked().
 const LIST := [
 	{
 		"id": "ach_first_server",

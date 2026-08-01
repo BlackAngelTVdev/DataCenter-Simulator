@@ -1,10 +1,7 @@
 class_name ServerUnit
 extends StaticBody2D
-## Un serveur posé dans le garage : héberge des clients, génère des revenus,
-## produit de la chaleur, et affiche sa saturation. Bloque le passage.
-## Le CORPS est une IMAGE cuite (assets/images/baked/servers/server_*.png) ; seules
-## les infos dynamiques (LED, texte, bulle « SATURÉ ») sont dessinées.
 
+# Un serveur posé dans le garage : héberge des clients, génère des revenus,
 const SIZE := Vector2(30, 22)
 
 var item: Dictionary = {}
@@ -133,7 +130,7 @@ func is_saturated() -> bool:
 
 
 func _draw() -> void:
-	# --- Rendu runtime : images + surcouches dynamiques ---
+# Rendu runtime : images + surcouches dynamiques
 	if _body != null:
 		_body.scale = Vector2.ONE * (0.6 if rack != null else 1.0)
 	# Serveur arrêté par un incident (surchauffe, DDoS non bloqué, coupure de

@@ -1,7 +1,6 @@
 extends Control
-## Menu principal style Minecraft : image de fond (cubes isométriques) étirée
-## sur toute la fenêtre, titre en haut et boutons centrés par-dessus.
 
+# Menu principal style Minecraft : image de fond (cubes isométriques) étirée
 const MAIN_SCENE := "res://scenes/game/garage.tscn"
 const LOCAL2_SCENE := "res://scenes/game/local2.tscn"
 const MENU_IMAGE := "res://assets/images/menu_image.svg"
@@ -83,17 +82,17 @@ func _build_menu() -> void:
 	vb.add_theme_constant_override("separation", 20)
 	center.add_child(vb)
 
-	# --- Reprendre ---
+# Reprendre
 	var resume := UIHelpers.make_button("Reprendre", true, Vector2(360, 62))
 	resume.pressed.connect(_on_resume)
 	vb.add_child(resume)
 
-	# --- Mes Sauvegardes (bouton : sous-menu des sauvegardes) ---
+# Mes Sauvegardes (bouton : sous-menu des sauvegardes)
 	var saves_btn := UIHelpers.make_button("Mes Sauvegardes", false, Vector2(360, 62))
 	saves_btn.pressed.connect(_on_saves)
 	vb.add_child(saves_btn)
 
-	# --- Option | Quitter (moitié / moitié) ---
+# Option | Quitter (moitié / moitié)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
 	vb.add_child(row)

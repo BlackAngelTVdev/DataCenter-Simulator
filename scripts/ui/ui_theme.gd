@@ -1,12 +1,6 @@
 class_name UITheme
-## ============================================================
-##  UITheme — interface 100% StyleBoxFlat (AUCUNE texture)
-## ============================================================
-##  L'ancien système du début : boutons et panneaux dessinés en
-##  code avec des couleurs pleines, coins arrondis et bordures
-##  fines. Simple, lisible et incassable (pas de dépendance aux
-##  PNG cuits ni au modulate_color des StyleBoxTexture).
 
+# UITheme — interface 100% StyleBoxFlat (AUCUNE texture)
 static func _flat(bg: Color, radius: float, border: Color, bw: int,
 		content_v: float, content_h: float) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()

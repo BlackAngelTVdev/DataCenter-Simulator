@@ -1,27 +1,7 @@
 class_name GarageScene
 extends Node2D
-## ============================================================
-##  LE GARAGE / LOCAL 2 — cœur du jeu
-## ============================================================
-##  Vue de dessus sur grille : on contrôle un personnage (WASD/ZQSD).
-##   • PC dans un coin  : E ouvre le faux bureau (navigateur « Renard »,
-##     boutique Tech'Occase — data/shop_catalog.gd)
-##   • Livraison dehors (garage) : E ramasse le colis
-##   • Établi (garage) : E installe l'OS (data/os_list.gd)
-##   • Établi Pro (Local 2) : E ouvre les 2 baies EN PARALLÈLE
-##   • Voiture (dans la rue) : E / clic ouvre le menu des lieux (data/locations.gd)
-##   • Sol : E pose le serveur (câblage automatique vers la box)
-##  Un Timer « tick » chaque seconde : les clients remplissent les serveurs,
-##  l'argent rentre, la température monte, la saturation alerte.
-##
-##  DEUX LOCATIONS partagent ce script (scènes garage.tscn / local2.tscn,
-##  distinguées par @export location_id). Chaque local a sa propre géométrie
-##  (murs, bornes du sol, box réseau…) via les helpers _loc_*.
-##  Le passage se fait en VOITURE (menu TravelUI) : chaque local garde SON
-##  monde placé en mémoire (GameManager.worlds, jamais écrit sur disque) — le
-##  colis porté, lui, est global (GameManager.carried). Les serveurs
-##  « travaillent » pendant l'absence (revenus de rattrapage).
 
+# LE GARAGE / LOCAL 2 — cœur du jeu
 @export var location_id := 0  # 0 = garage DC-1 (petit), 1 = Local 2 « Data Hall »
 
 const MENU_SCENE := "res://scenes/ui/menu.tscn"
@@ -34,7 +14,7 @@ const INTERACT_RANGE := 62.0
 const PLACE_RANGE := 2  # rayon de pose (en cases) autour du joueur
 const MAX_FLOOR_SERVERS := 4  # serveurs posés au sol (au-delà : il faut une armoire)
 
-# --- Géométrie du GARAGE (local 0) : petite pièce + cour de livraison ---
+# Géométrie du GARAGE (local 0) : petite pièce + cour de livraison
 const GARAGE_MAP := Vector2i(28, 22)          # 896 x 704 px
 const GARAGE_BOUNDS := Rect2i(1, 1, 26, 15)   # intérieur 26 x 15 cases
 const GARAGE_DOOR_X0 := 15                    # porte de livraison (cases)
@@ -47,7 +27,7 @@ const GARAGE_BENCH := Vector2i(3, 2)
 const GARAGE_STORAGE := Vector2i(21, 9)       # étagère de stockage (décalée vers le centre)
 const GARAGE_CAR_POS := Vector2(450, 664)     # voiture dans la rue (cour)
 
-# --- Géométrie du DATA HALL (local 1) : grande salle ---
+# Géométrie du DATA HALL (local 1) : grande salle
 const LOCAL2_MAP := Vector2i(44, 30)
 const LOCAL2_BOUNDS := Rect2i(1, 1, 42, 23)
 const LOCAL2_NETWORK := Vector2(180, 26)
@@ -138,12 +118,12 @@ var _just_teleported := false
 var _overheat_announced := false  # toast de surchauffe déjà affiché (anti-spam)
 var _bandwidth_announced := false  # alerte « connexion saturée » déjà envoyée (anti-spam)
 
-# --- Événements aléatoires (vie du garage) ---
+# Événements aléatoires (vie du garage)
 var event_timer: Timer
 var garage_cat: GarageCat
 
 
-# ------------------------------------------------------------------ Config par local
+# Config par local
 func _loc_name() -> String:
 	return "LOCAL 2 — DATA HALL" if location_id == 1 else "GARAGE DC-1"
 
@@ -217,7 +197,7 @@ func _loc_blocked_cells() -> Array:
 	return GarageDecor.BLOCKED_CELLS if location_id == 0 else Local2Decor.BLOCKED_CELLS
 
 
-# ------------------------------------------------------------------ Cycle de vie
+# Cycle de vie
 func _ready() -> void:
 	_build_floor()
 	_build_walls()
@@ -312,7 +292,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_try_place_click()
 
 
-# ------------------------------------------------------------------ Construction
+# Construction
 func _build_floor() -> void:
 	queue_redraw()
 
@@ -626,7 +606,7 @@ func _arm_event_timer() -> void:
 	event_timer.start()
 
 
-# ------------------------------------------------------------------ Interaction
+# Interaction
 func _nearest_broken_server(max_dist: float) -> ServerUnit:
 	## Le serveur EN PANNE le plus proche (au sol ou monté) : on le PREND en
 	## main (E) pour l'apporter à l'établi — la réparation se fait SUR
@@ -1165,7 +1145,7 @@ func _delivery_pickup() -> void:
 	_refresh_delivery_crates()
 
 
-# ------------------------------------------------------------------ Établi Pro (Local 2)
+# Établi Pro (Local 2)
 func _bench_place() -> void:
 	if bench_unit == null:
 		return
@@ -1236,7 +1216,7 @@ func _bench_pickup(bay: int) -> void:
 	hud.toast("Serveur récupéré — installe-le dans une armoire Pro !")
 
 
-# ------------------------------------------------------------------ Étagère de stockage
+# Étagère de stockage
 func _storage_deposit() -> void:
 	## Dépose l'objet porté sur l'étagère (libère les mains, ex: avant de poser
 	## une armoire). L'objet garde son OS s'il en a un.
@@ -1266,7 +1246,7 @@ func _storage_take(slot: int) -> void:
 	hud.toast("Objet repris de l'étagère !")
 
 
-# ------------------------------------------------------------------ Voiture / téléportation
+# Voiture / téléportation
 func _on_travel_requested(target: int) -> void:
 	## « S'y rendre » depuis le menu voiture (TravelUI).
 	if target == location_id:
@@ -1431,7 +1411,7 @@ func _simulate_other_world(fill_clients: bool = true) -> float:
 	return income
 
 
-# ------------------------------------------------------------------ Monde (snapshot / restore)
+# Monde (snapshot / restore)
 func world_placed() -> Dictionary:
 	## Sérialisation EN MÉMOIRE du monde PLACÉ du local courant (racks,
 	## serveurs, établi Pro, étagère) SANS le colis porté. C'est CETTE valeur
@@ -1589,7 +1569,7 @@ func _restore_cell(cell: Vector2i) -> Vector2i:
 	return b.position + Vector2i(4, 4)
 
 
-# ------------------------------------------------------------------ Placement
+# Placement
 func _cell_at(pos: Vector2) -> Vector2i:
 	return Vector2i(floori(pos.x / TILE), floori(pos.y / TILE))
 
@@ -1757,7 +1737,7 @@ func _place_at(cell: Vector2i) -> bool:
 	return true
 
 
-# ------------------------------------------------------------------ Placement à la souris (cases vertes)
+# Placement à la souris (cases vertes)
 func _in_bounds(cell: Vector2i) -> bool:
 	return _loc_bounds().has_point(cell)
 
@@ -2104,7 +2084,7 @@ func _proxy_boost() -> int:
 	return n
 
 
-# ------------------------------------------------------------------ Économie (tick 1s)
+# Économie (tick 1s)
 func _on_tick() -> void:
 	tick += 1
 	_update_incidents()
@@ -2276,7 +2256,7 @@ func _server_running(s: ServerUnit) -> bool:
 
 func _update_incidents() -> void:
 	## DDoS et coupures de courant : états aléatoires gérés au tick (1 s).
-	# --- Attaque DDoS ---
+# Attaque DDoS
 	if GameManager.ddos_ticks_left > 0:
 		GameManager.ddos_ticks_left -= 1
 		if GameManager.ddos_ticks_left == 0:
@@ -2296,7 +2276,7 @@ func _update_incidents() -> void:
 		else:
 			hud.toast("ALERTE : attaque DDoS ! Serveurs hors ligne %d s — achète un pare-feu sur Tech'Occase." % GameManager.ddos_ticks_left)
 
-	# --- Coupure de courant ---
+# Coupure de courant
 	if GameManager.outage_ticks_left > 0:
 		GameManager.outage_ticks_left -= 1
 		if GameManager.outage_ticks_left == 0:
@@ -2414,7 +2394,7 @@ func _on_bay_finished(bay: int, is_repair: bool) -> void:
 	hud.toast("Baie %d : %s installé ! Reviens le récupérer (E sur l'établi)." % [bay + 1, name])
 
 
-# ------------------------------------------------------------------ Événements aléatoires (vie du garage)
+# Événements aléatoires (vie du garage)
 func _on_random_event() -> void:
 	## Un événement inattendu parmi le pool : ça anime le garage et donne
 	## envie d'y rester (ou de se demander d'où sort ce chat).
@@ -2502,7 +2482,7 @@ func _ambient_toast() -> void:
 	hud.toast(msgs[randi() % msgs.size()])
 
 
-# ------------------------------------------------------------------ HUD / livraisons
+# HUD / livraisons
 # Les panneaux de stats (argent/réseau) ont été retirés du HUD : rien ne
 # recouvre la vue. Les stats restent calculées (GameManager) pour la logique,
 # et l'argent est visible dans la boutique Tech'Occase + via les toasts.
@@ -2555,7 +2535,7 @@ func _autosave() -> void:
 	GameSave.persist(self)
 
 
-# ------------------------------------------------------------------ Rendu du sol
+# Rendu du sol
 func _draw() -> void:
 	# Fond : image cuite du monde (sol, murs, cour, décor) — plus aucun dessin
 	# procédural à l'exécution : tout est en image cuite (assets/images/baked/).

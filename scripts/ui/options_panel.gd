@@ -1,9 +1,7 @@
 class_name OptionsPanel
 extends CanvasLayer
-## Panneau d'options réutilisable : plein écran, résolution, volume, retour.
-## Les réglages sont sauvegardés via SettingsManager et réappliqués au lancement.
-## CanvasLayer + CenterContainer : toujours centré, quelle que soit la résolution.
 
+# Panneau d'options réutilisable : plein écran, résolution, volume, retour.
 const RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1280, 720),
 	Vector2i(1600, 900),

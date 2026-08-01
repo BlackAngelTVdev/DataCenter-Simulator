@@ -1,12 +1,7 @@
 class_name RackUnit
 extends StaticBody2D
-## Une armoire 19" posée dans un local : accueille jusqu'à « slots » serveurs
-## (2 standard, 4 pour l'armoire Pro Data) qui hébergent alors le DOUBLE de
-## clients. L'armoire Pro a aussi un slot BATTERIE (onduleur) qui réduit de
-## 30% la chaleur produite par ses serveurs. Bloque le passage.
-## Le CORPS est une IMAGE cuite (assets/images/baked/racks/rack_*.png) ; la bande
-## batterie est un sprite superposé.
 
+# Une armoire 19" posée dans un local : accueille jusqu'à « slots » serveurs
 const MAX_MOUNTS := 2  # défaut (armoire standard)
 const SIZE := Vector2(40, 30)  # taille standard
 

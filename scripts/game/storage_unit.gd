@@ -1,13 +1,7 @@
 class_name StorageUnit
 extends StaticBody2D
-## L'ÉTAGÈRE DE STOCKAGE : un meuble fixe où l'on peut déposer provisoirement
-## un objet porté (serveur, armoire, batterie) pour libérer ses mains — par
-## exemple avant de poser une armoire — puis le reprendre plus tard.
-## On interagit avec E (panneau StorageUI : déposer / prendre). Sauvegardée
-## dans le snapshot du monde comme le reste (racks, serveurs, établi).
-## Le CORPS est une IMAGE cuite (storage.png) ; le contenu des cases (et la
-## LED d'état) sont dessinés par-dessus avec des textures cuites.
 
+# L'ÉTAGÈRE DE STOCKAGE : un meuble fixe où l'on peut déposer provisoirement
 const SLOTS := 4
 const SIZE := Vector2(64, 30)
 
@@ -86,7 +80,7 @@ func restore(data: Variant) -> void:
 
 
 func _draw() -> void:
-	# --- Runtime : cases (textures cuites) + LED d'état ---
+# Runtime : cases (textures cuites) + LED d'état
 	if _led != null:
 		_led.texture = BakedAssets.tex("led_green" if count() > 0 else "led_grey")
 	var slot_w := (SIZE.x - 14.0) / 2.0

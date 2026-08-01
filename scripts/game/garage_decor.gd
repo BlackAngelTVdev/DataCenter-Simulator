@@ -1,13 +1,7 @@
 class_name GarageDecor
 extends StaticBody2D
-## Décor du GARAGE (petit local de départ) : rend le lieu vivant (voiture,
-## armoire à outils, étagères, pneus, panneaux…) et donne une vraie ambiance
-## de garage. La cour de livraison (camionnette, benne, arbres) est dessinée
-## sous la porte de livraison. Les gros éléments bloquent la marche
-## (collision couche 2) et leurs cases sont impossibles à construire
-## (BLOCKED_CELLS, lu par garage_scene).
 
-## Cases occupées par le décor : impossible d'y poser serveur ou armoire.
+# Décor du GARAGE (petit local de départ) : rend le lieu vivant (voiture,
 const BLOCKED_CELLS: Array[Vector2i] = [
 	# Voiture (coin bas-gauche)
 	Vector2i(1, 12), Vector2i(2, 12), Vector2i(3, 12), Vector2i(4, 12),
@@ -62,7 +56,7 @@ func _add_blocker(rect: Rect2) -> void:
 	add_child(shape)
 
 
-# ------------------------------------------------------------------ Rendu
+# Rendu
 func _draw() -> void:
 	if not visuals:
 		return  # le visuel est déjà dans l'image de fond

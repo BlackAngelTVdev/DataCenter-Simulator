@@ -1,19 +1,7 @@
 class_name LoadingScreen
 extends CanvasLayer
-## ============================================================
-##  ÉCRAN DE CHARGEMENT — transitions entre les scènes
-## ============================================================
-##  S'affiche entre deux scènes (menu -> jeu, voiture -> local,
-##  retour au menu) : fond sombre, titre de destination, statut
-##  « boot » façon terminal, barre de progression (chargement
-##  RÉEL du .tscn en thread + durée minimum pour laisser le
-##  temps de lire les blagues) et une blague serveur / OS / IT
-##  qui défile en boucle.
-##
-##  Usage :  LoadingScreen.go_to("res://scenes/game/garage.tscn", "Titre")
-##  Le node est ajouté à la scène courante : il est libéré
-##  automatiquement par change_scene_to_packed à la fin.
 
+# ÉCRAN DE CHARGEMENT — transitions entre les scènes
 const LOAD_JOKES := [
 	"Pourquoi les serveurs n'aiment pas l'hiver ? Parce qu'ils préfèrent le cloud.",
 	"sudo rm -rf / : la commande qui règle tous tes problèmes… une seule fois.",
@@ -104,7 +92,7 @@ func _input(_event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_elapsed += delta
 
-	# --- Progression : réel (thread) plafonné à 95 % tant que le temps
+# Progression : réel (thread) plafonné à 95 % tant que le temps
 	# minimum n'est pas écoulé (sinon la barre finirait avant la 1re blague).
 	var real := 0.0
 	if not _loaded:
@@ -123,7 +111,7 @@ func _process(delta: float) -> void:
 	_bar.value = _shown
 	_pct.text = "%d %%" % roundi(_shown * 100.0)
 
-	# --- Statut et blague qui défilent.
+# Statut et blague qui défilent.
 	_status_timer += delta
 	if _status_timer >= 0.7:
 		_status_timer = 0.0
@@ -135,11 +123,11 @@ func _process(delta: float) -> void:
 		_joke_idx = (_joke_idx + 1) % _joke_order.size()
 		_set_joke(_joke_idx)
 
-	# --- Fin : chargé + temps minimum écoulé + barre quasi pleine.
+# Fin : chargé + temps minimum écoulé + barre quasi pleine.
 	if _loaded and _elapsed >= _min_time and _shown >= 0.99:
 		_finish()
 		return
-	# --- SECOURS anti-soft-lock : si le chargement threadé échoue (fichier
+# SECOURS anti-soft-lock : si le chargement threadé échoue (fichier
 	# introuvable, ressource corrompue), on force quand même la transition
 	# après le temps minimum + 5 s — l'écran ne doit JAMAIS rester bloqué.
 	if not _loaded and _elapsed > _min_time + 5.0:

@@ -1,11 +1,6 @@
 extends Node
-## Test de l'app Mail (BianOS) — exécuté comme SCÈNE (pas besoin du garage :
-## le pool d'e-mails + l'autoload GameManager suffisent).
-##
-## Vérifie que : (1) les e-mails arrivent selon les conditions (clients), (2)
-## chaque e-mail n'apparaît qu'une fois (mails_seen), (3) accepter un contrat
-## garantit des revenus mensuels (contract_income_per_sec > 0).
 
+# Test de l'app Mail (BianOS) — exécuté comme SCÈNE (pas besoin du garage
 func _ready() -> void:
 	await get_tree().process_frame
 	GameManager.reset()

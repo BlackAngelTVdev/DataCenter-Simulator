@@ -1,10 +1,6 @@
 extends Node
-## Test de la DÉCO — exécuté comme SCÈNE avec un garage parent.
-##
-## Vérifie que : (1) poser une déco l'ajoute à placed_decos + occupied_cells,
-## (2) le bonus chaleur d'une plante (-1%) réduit bien la chaleur au tick,
-## (3) la déco est sérialisée dans world_placed() et restaurée.
 
+# Test de la DÉCO — exécuté comme SCÈNE avec un garage parent.
 func _ready() -> void:
 	await get_tree().process_frame
 	var garage := get_parent() as GarageScene

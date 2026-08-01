@@ -1,8 +1,6 @@
 class_name SaveManager
-## Gestionnaire de sauvegardes multi-emplacements (JSON dans user://saves/).
-## Générique : chaque emplacement stocke un simple dictionnaire JSON
-## (voir GameSave pour la sérialisation de l'état du garage).
 
+# Gestionnaire de sauvegardes multi-emplacements (JSON dans user://saves/).
 const SLOT_COUNT := 4
 const SAVE_DIR := "user://saves"
 

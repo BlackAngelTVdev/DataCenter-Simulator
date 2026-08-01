@@ -1,11 +1,7 @@
 class_name Local2Decor
 extends StaticBody2D
-## Décor du LOCAL 2 « Data Hall » : une vraie salle serveur (plancher surélevé,
-## climatiseurs, baies murales avec LEDs, coffret onduleur, gaines de câbles).
-## Les gros éléments bloquent la marche (collision couche 2) et leurs cases
-## sont impossibles à construire (BLOCKED_CELLS, lu par garage_scene).
 
-## Cases occupées par le décor : impossible d'y poser armoire ou serveur.
+# Décor du LOCAL 2 « Data Hall » : une vraie salle serveur (plancher surélevé,
 const BLOCKED_CELLS: Array[Vector2i] = [
 	# Climatiseurs (coin haut-gauche)
 	Vector2i(1, 2), Vector2i(2, 2), Vector2i(3, 2), Vector2i(4, 2),
@@ -60,7 +56,7 @@ func _add_blocker(rect: Rect2) -> void:
 	add_child(shape)
 
 
-# ------------------------------------------------------------------ Rendu
+# Rendu
 func _draw() -> void:
 	if not visuals:
 		return  # le visuel est déjà dans l'image de fond

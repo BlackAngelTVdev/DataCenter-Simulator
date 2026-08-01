@@ -1,10 +1,7 @@
 class_name MailUI
 extends PanelContainer
-## L'app « Mail » de BianOS : les clients écrivent (problèmes, demandes,
-## félicitations…). Certains e-mails proposent un CONTRAT : l'accepter
-## garantit des revenus mensuels (GameManager.contracts, ajoutés au tick).
-## La fenêtre liste les e-mails reçus ; cliquer sur un message l'ouvre.
 
+# L'app « Mail » de BianOS : les clients écrivent (problèmes, demandes,
 signal closed
 
 var _list_box: VBoxContainer

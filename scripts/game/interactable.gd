@@ -1,11 +1,7 @@
 class_name Interactable
 extends StaticBody2D
-## Un point d'interaction dans le garage (ordinateur, établi, zone livraison,
-## voiture). Le garage détecte le plus proche du joueur et affiche « E — … »
-## dans le HUD. Le CORPS est une IMAGE cuite selon le kind (computer / bench /
-## delivery / car) ; l'étiquette reste un texte dessiné. La voiture (kind
-## "car") ouvre le menu des lieux (TravelUI) — clic ou E.
 
+# Un point d'interaction dans le garage (ordinateur, établi, zone livraison,
 var kind := "generic"  # "computer" | "bench" | "delivery" | "car" | "desk" | "assembly"
 var label := ""
 var box_size := Vector2(36, 30)

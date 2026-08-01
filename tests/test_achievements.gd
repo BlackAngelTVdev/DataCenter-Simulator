@@ -1,12 +1,6 @@
 extends Node
-## Test des SUCCÈS — exécuté comme SCÈNE (pas besoin du garage : le pool de
-## succès + l'autoload GameManager suffisent).
-##
-## Vérifie que : (1) aucun succès au départ, (2) « Premier serveur » se
-## débloque avec un serveur posé, (3) « Millionnaire » à 1 000 000 $,
-## (4) « 10 clients » à 10 clients, (5) « DDoS » quand une attaque a eu lieu,
-## (6) « 5 chats » après 5 visites.
 
+# Test des SUCCÈS — exécuté comme SCÈNE (pas besoin du garage : le pool de
 func _ready() -> void:
 	await get_tree().process_frame
 	GameManager.reset()

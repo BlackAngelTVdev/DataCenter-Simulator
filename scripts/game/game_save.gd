@@ -1,16 +1,10 @@
 class_name GameSave
-## Sérialisation de l'état du jeu (cash, température, abonnement, pare-feu,
-## local, livraisons, colis porté, serveurs posés avec OS/clients, armoires
-## avec serveurs montés + batterie, baies de l'établi Pro) via SaveManager
-## (emplacements JSON). Le format du MONDE (racks/servers/bench/storage) est
-## produit par GarageScene.world_placed() et restauré par restore_world() —
-## la même paire sert à la téléportation entre les deux locaux (chaque local
-## garde SON monde ; seul le colis porté est global).
 
+# Sérialisation de l'état du jeu (cash, température, abonnement, pare-feu,
 const SAVE_VERSION := 3
 
 
-# ------------------------------------------------------------------ Sauvegarde
+# Sauvegarde
 static func persist(garage: GarageScene) -> bool:
 	## Sauvegarde l'état complet : les DEUX mondes placés (garage + Data Hall)
 	## et le colis porté (global, il voyage avec le joueur). Chaque local garde
@@ -60,7 +54,7 @@ static func persist(garage: GarageScene) -> bool:
 	return SaveManager.save_data(slot, data)
 
 
-# ------------------------------------------------------------------ Chargement
+# Chargement
 static func load_into(garage: GarageScene) -> void:
 	var slot := SaveManager.pending_slot
 	SaveManager.pending_slot = -1  # consommé : évite les rechargements parasites
@@ -214,7 +208,7 @@ static func _vec_to_arr(v: Vector2) -> Array:
 	return [v.x, v.y]
 
 
-# ------------------------------------------------------------------ Helpers
+# Helpers
 static func restore_item(raw: Variant) -> Dictionary:
 	## Repart de la fiche catalogue (id) pour retrouver des valeurs typées
 	## (Color, nombres) propres — le JSON ne garde pas les types Color.

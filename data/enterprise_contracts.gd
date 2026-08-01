@@ -1,26 +1,7 @@
 class_name EnterpriseContract
 extends RefCounted
-## ============================================================
-##  CONTRATS D'ENTREPRISE — « Contrats d'entreprise » (BianOS)
-## ============================================================
-##  Signer un contrat mensuel avec une société : revenus GARANTIS
-##  par mois si les EXIGENCES du contrat sont respectées (ex :
-##  « il faut un serveur DÉDIÉ et 2 climatiseurs »). Si les
-##  exigences ne sont plus remplies, on paie une PÉNALITÉ au lieu
-##  de recevoir l'argent. C'est le système de partenariats côté
-##  clients : du revenu garanti, mais une contrepartie à tenir.
-##
-##  Champs :
-##    id            : identifiant unique
-##    name          : nom de la société
-##    desc          : description affichée
-##    income_month  : $ garantis par mois quand les exigences tiennent
-##    penalty_month : $ perdus par mois quand elles ne tiennent pas
-##    requirements  : { "dedicated_servers": N, "clims": N, "racks": N, "clients": N }
-##                    (décompte dans le LOCAL COURANT)
-##
-##  Pour ajouter un contrat : copie-colle un bloc { ... } dans LIST.
 
+# CONTRATS D'ENTREPRISE — « Contrats d'entreprise » (BianOS)
 const CONTRACTS := [
 	{
 		"id": "ent_cloudlite",

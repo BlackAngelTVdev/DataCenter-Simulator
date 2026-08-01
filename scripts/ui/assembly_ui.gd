@@ -1,9 +1,7 @@
 class_name AssemblyUI
 extends CanvasLayer
-## Table d'assemblage (Data Hall) : on y assemble un KIT serveur neuf
-## (commandé sur le site « Neuf » du PC Pro) en un VRAI serveur. L'assemblage
-## prend ~20 s — la table est occupée pendant ce temps (comme l'établi).
 
+# Table d'assemblage (Data Hall) : on y assemble un KIT serveur neuf
 signal assembled(item: Dictionary)  # le serveur assemblé (à mettre en main)
 
 const ASSEMBLY_TIME := 20.0  # assembler un serveur prend ~20 s

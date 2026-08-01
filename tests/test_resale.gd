@@ -1,13 +1,6 @@
 extends Node
-## Test du flux de revente du stock — exécuté comme SCÈNE (autoloads + scène
-## garage = current_scene, comme dans le vrai jeu). Ce script est un ENFANT du
-## garage : le parent (GarageScene) est déjà construit quand on tourne.
-##
-## Scénario du bug rapporté : le navigateur rend sa page une seule fois au
-## _ready() (étagère vide) ; si le joueur dépose un item PUIS ouvre le
-## navigateur, la section « Vendre ton stock » doit être re-rendue à
-## l'ouverture (_open_browser puis _render_page) — c'est ce qu'on vérifie ici.
 
+# Test du flux de revente du stock — exécuté comme SCÈNE (autoloads + scène
 func _find_buttons(node: Node, out: Array) -> void:
 	for child in node.get_children():
 		if child is Button and "Vendre" in child.text:

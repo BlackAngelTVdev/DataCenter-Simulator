@@ -1,8 +1,7 @@
 class_name Cable
 extends Node2D
-## Un câble réseau entre un serveur et la box du garage.
-## Le câblage est automatique : dès qu'un serveur est posé, il est branché.
 
+# Un câble réseau entre un serveur et la box du garage.
 var from_pos := Vector2.ZERO
 var to_pos := Vector2.ZERO
 var color := Color(0.3, 0.75, 1.0, 0.8)

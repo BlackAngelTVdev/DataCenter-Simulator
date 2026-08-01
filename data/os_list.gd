@@ -1,25 +1,8 @@
 class_name OSList
 extends RefCounted
-## ============================================================
-##  SYSTÈMES D'EXPLOITATION installables à l'établi
-## ============================================================
-##  Chaque OS définit le TYPE D'OFFRE du serveur — c'est le cœur
-##  du gameplay réaliste :
-##    hosting = "dedicated"  : offre SERVEUR DÉDIÉ : peu de clients,
-##                             mais des clients PREMIUM qui paient cher.
-##    hosting = "vps"        : offre VPS (nœud de virtualisation) :
-##                             BEAUCOUP de clients, mais chacun paie moins.
-##
-##  Champs :
-##    id           : identifiant unique
-##    name         : nom affiché (fakes de Debian/Ubuntu/Proxmox)
-##    hosting      : "dedicated" ou "vps"
-##    desc         : description affichée dans l'UI
-##    color        : couleur du logo
-##    slot_mult    : multiplie le nombre de clients max (VPS : plus de slots)
-##    income_mult  : multiplie le revenu PAR CLIENT (dédié : premium)
-##    heat_mult    : multiplie la chaleur produite
 
+# Systèmes d'exploitation installables à l'établi. hosting = "dedicated"
+# (peu de clients premium) ou "vps" (beaucoup de clients, chacun paie moins).
 const SYSTEMS := [
 	{
 		"id": "deblon",

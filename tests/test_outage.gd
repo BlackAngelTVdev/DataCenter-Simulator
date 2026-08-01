@@ -1,10 +1,6 @@
 extends Node
-## Test des coupures de courant — exécuté comme SCÈNE (garage = racine =
-## current_scene, Test = enfant).
-##
-## Pendant une coupure, seuls les serveurs montés sur une armoire avec onduleur
-## (UPS) continuent d'encaisser ; les autres s'éteignent (clients perdus).
 
+# Test des coupures de courant — exécuté comme SCÈNE (garage = racine =
 func _ready() -> void:
 	await get_tree().process_frame
 	var garage := get_parent() as GarageScene

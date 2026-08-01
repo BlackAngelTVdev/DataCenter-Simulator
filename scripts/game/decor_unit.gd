@@ -1,11 +1,7 @@
 class_name DecorUnit
 extends StaticBody2D
-## Une décoration posée au sol (affiche, plante, néon…) : purement esthétique,
-## à part un éventuel petit bonus « heat_bonus » (fraction de chaleur en
-## moins dans le local). Ne rapporte rien, ne consomme rien — ça fait vivre
-## le garage et dépense l'argent de fin de partie.
-## Le CORPS est une IMAGE cuite (assets/images/baked/decor/decor_*.png).
 
+# Une décoration posée au sol (affiche, plante, néon…) : purement esthétique,
 const SIZE := Vector2(26, 22)
 
 var item: Dictionary = {}

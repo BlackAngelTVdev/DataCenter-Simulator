@@ -1,13 +1,7 @@
 class_name WindowDrag
 extends RefCounted
-## Rendre une fenêtre du faux OS (BianOS) DÉPLAÇABLE comme sur un vrai PC :
-## tirer la barre de titre avec la souris pour déplacer la fenêtre, et cliquer
-## dessus la fait passer au premier plan. Un garde-fou empêche de perdre la
-## fenêtre entièrement hors de l'écran (la barre de titre reste accessible).
-##
-## Usage : WindowDrag.attach(fenetre, barre_de_titre)
-## La barre de titre doit être un Control (PanelContainer/HBoxContainer).
 
+# Rendre une fenêtre du faux OS (BianOS) DÉPLAÇABLE comme sur un vrai PC
 var _win: Control
 var _dragging := false
 var _drag_offset := Vector2.ZERO

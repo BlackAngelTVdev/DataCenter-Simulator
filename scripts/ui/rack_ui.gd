@@ -1,12 +1,7 @@
 class_name RackUI
 extends CanvasLayer
-## Panneau d'armoire (s'ouvre avec E près d'une armoire) : montre une vraie
-## armoire 19" VUE DE FACE — le switch réseau en HAUT (avec ses ports LED),
-## les serveurs empilés AU MILIEU (face avant, LED d'état, specs) et l'onduleur
-## UPS EN BAS (armoire Pro). On clique sur chaque unité pour voir sa fiche et
-## la DÉRANQUER (la reprendre en main). Les serveurs posés au sol sont listés
-## en dessous avec un bouton « Monter » pour les installer dans l'armoire.
 
+# Panneau d'armoire (s'ouvre avec E près d'une armoire) : montre une vraie
 signal unrack_requested(server: ServerUnit)
 signal mount_requested(server: ServerUnit)
 signal battery_unrack_requested(rack: RackUnit)
@@ -109,7 +104,7 @@ func _build() -> void:
 	rack_visual.unit_pressed.connect(_on_unit_pressed)
 	body_row.add_child(rack_visual)
 
-	# --- Colonne de droite : fiche de l'unité sélectionnée ---
+# Colonne de droite : fiche de l'unité sélectionnée
 	detail_box = VBoxContainer.new()
 	detail_box.custom_minimum_size = Vector2(380, 0)
 	detail_box.add_theme_constant_override("separation", 8)
@@ -149,7 +144,7 @@ func _build() -> void:
 	detail_action.add_theme_font_size_override("font_size", 16)
 	dvb.add_child(detail_action)
 
-	# --- Serveurs au sol, prêts à être montés ---
+# Serveurs au sol, prêts à être montés
 	var sep := Label.new()
 	sep.text = "── Serveurs au sol (à monter) ──"
 	sep.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -190,7 +185,7 @@ func _refresh() -> void:
 			floor_box.add_child(_floor_card(s))
 
 
-# ------------------------------------------------------------------ Sélection
+# Sélection
 func _on_unit_pressed(kind: String, index: int) -> void:
 	match kind:
 		"switch":
@@ -407,10 +402,8 @@ func _stats_line(server: ServerUnit) -> String:
 	]
 
 
-# ==================================================================
 #  RackVisual — l'armoire 19" VUE DE FACE, dessinée (rails métalliques,
 #  switch en haut avec ports LED, serveurs au milieu, UPS en bas).
-# ==================================================================
 class RackVisual extends Control:
 	signal unit_pressed(kind: String, index: int)
 
@@ -506,11 +499,11 @@ class RackVisual extends Control:
 		var h := size.y
 		var font := ThemeDB.fallback_font
 
-		# --- Châssis de l'armoire ---
+# Châssis de l'armoire
 		draw_rect(Rect2(0, 0, w, h), Color(0.07, 0.08, 0.11), true)
 		draw_rect(Rect2(0, 0, w, h), Color(0.35, 0.4, 0.5, 0.8), false, 1.5)
 
-		# --- Rails latéraux avec vis ---
+# Rails latéraux avec vis
 		var rail_l := Rect2(MARGIN, MARGIN + 8, RAIL_W, h - MARGIN * 2 - 16)
 		var rail_r := Rect2(w - MARGIN - RAIL_W, MARGIN + 8, RAIL_W, h - MARGIN * 2 - 16)
 		draw_rect(rail_l, Color(0.16, 0.18, 0.24), true)
@@ -521,17 +514,17 @@ class RackVisual extends Control:
 				draw_rect(Rect2(rx, y, RAIL_W - 4, 3), Color(0.32, 0.37, 0.47), true)
 			y += 22
 
-		# --- En-tête : nom + modèle ---
+# En-tête : nom + modèle
 		var model := "ARM PRO 19\"" if rack.slots >= 4 else "ARM 19\""
 		draw_string(font, Vector2(0, MARGIN + 12), model, \
 			HORIZONTAL_ALIGNMENT_CENTER, w, 12, Color(0.8, 0.88, 1.0, 0.9))
 
-		# --- Switch réseau (HAUT) ---
+# Switch réseau (HAUT)
 		var sw_y := MARGIN + 20.0 + 6.0
 		_switch_rect = Rect2(MARGIN + RAIL_W + 4, sw_y, w - (MARGIN + RAIL_W + 4) * 2, SWITCH_H)
 		_draw_switch(font)
 
-		# --- Serveurs (MILIEU) ---
+# Serveurs (MILIEU)
 		_bay_rects.clear()
 		var by := _switch_rect.end.y + 8.0
 		for i in range(rack.slots):
@@ -540,12 +533,12 @@ class RackVisual extends Control:
 			_draw_bay(font, r, i)
 			by += BAY_H + BAY_GAP
 
-		# --- Onduleur UPS (BAS, armoire Pro) ---
+# Onduleur UPS (BAS, armoire Pro)
 		if rack.battery_slot:
 			_battery_rect = Rect2(MARGIN + RAIL_W + 4, by, w - (MARGIN + RAIL_W + 4) * 2, BATTERY_H)
 			_draw_battery(font)
 
-		# --- Hover / sélection ---
+# Hover / sélection
 		if _sel_kind == 0:
 			_draw_outline(_switch_rect, Color(0.4, 0.9, 1.0))
 		if _sel_kind == 2:

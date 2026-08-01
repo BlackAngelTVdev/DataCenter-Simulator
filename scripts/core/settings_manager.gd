@@ -1,6 +1,6 @@
 class_name SettingsManager
-## Réglages persistants (user://settings.json) : plein écran, résolution, volume.
 
+# Réglages persistants (user://settings.json) : plein écran, résolution, volume.
 const SETTINGS_PATH := "user://settings.json"
 
 static var data := {

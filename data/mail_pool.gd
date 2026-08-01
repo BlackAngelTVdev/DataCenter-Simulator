@@ -1,24 +1,7 @@
 class_name MailPool
 extends RefCounted
-## ============================================================
-##  APP MAIL (BianOS) — e-mails des clients
-## ============================================================
-##  Les clients écrivent : « mon site rame », « je veux un serveur
-##  dédié », « bravo, +1 client premium ! »… Certains e-mails
-##  contiennent une OFFRE DE CONTRAT : l'accepter signe un contrat
-##  (revenus GARANTIS par mois, ajoutés au tick indépendamment des
-##  serveurs). C'est l'ONG de la fidélisation.
-##
-##  Champs :
-##    id         : identifiant unique de l'e-mail
-##    from       : expéditeur
-##    subject    : objet
-##    body       : corps du message
-##    unlock     : condition d'arrivée ("always" | "clients>=N")
-##    contract   : optionnel — { "id", "name", "income_per_month" }
-##
-##  Pour ajouter un e-mail : copie-colle un bloc { ... } dans MAILS.
 
+# APP MAIL (BianOS) — e-mails des clients
 const MAILS := [
 	{
 		"id": "mail_welcome",
@@ -111,9 +94,7 @@ static func contract_for(mail: Dictionary) -> Dictionary:
 	return (mail as Dictionary).get("contract", {})
 
 
-## ------------------------------------------------------------
 ##  E-MAILS ALÉATOIRES (pub / offres / newsletters / spam)
-## ------------------------------------------------------------
 ##  Ces e-mails n'ont PAS de condition d'arrivée : ils tombent dans la boîte
 ##  de façon aléatoire au fil de la partie (garage_scene planifie leur
 ##  arrivée). Contrairement aux e-mails de clients, ils n'ont pas de contrat

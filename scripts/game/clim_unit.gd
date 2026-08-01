@@ -1,10 +1,7 @@
 class_name ClimUnit
 extends StaticBody2D
-## Un climatiseur posé au sol dans un local : refroidit la pièce (chaque
-## unité soustrait sa puissance « cooling » à la chaleur des serveurs).
-## Sans clims, la température grimpe jusqu'à l'ARRÊT des serveurs (50 °C).
-## Le CORPS est une IMAGE cuite (assets/images/baked/clims/clim_*.png).
 
+# Un climatiseur posé au sol dans un local : refroidit la pièce (chaque
 const SIZE := Vector2(34, 24)
 
 var item: Dictionary = {}

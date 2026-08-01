@@ -1,16 +1,7 @@
 class_name OSInstallUI
 extends CanvasLayer
-## Popup de l'ÉTABLI du garage : installer un OS (Deblon / Ouboutou /
-## Proxmousse) ou un reverse proxy sur le serveur, soit RÉPARER un serveur
-## EN PANNE au prix du marché (~2 min).
-##
-## Dès qu'on clique, le serveur RESTE POSÉ SUR L'ÉTABLI (les mains sont
-## libérées par le garage) et le travail continue TOUT SEUL en arrière-plan
-## (traité au tick via GameManager.bench_job). Revenir à l'établi + E :
-##  - travail en cours  -> panneau de PROGRESSION (barre + %)
-##  - travail terminé   -> panneau PRÊT avec le bouton « Récupérer »
-## Le joueur peut donc vaquer à ses occupations sans être bloqué.
 
+# Popup de l'ÉTABLI du garage : installer un OS (Deblon / Ouboutou /
 signal started(text: String)  # le travail démarre (le garage libère les mains)
 signal pick_up_requested      # « Récupérer » cliqué (le garage rend le serveur)
 
@@ -122,7 +113,7 @@ func _build() -> void:
 	stack.custom_minimum_size = Vector2(560, 0)
 	panel.add_child(stack)
 
-	# --- Bloc CHOIX (installation / réparation) ---
+# Bloc CHOIX (installation / réparation)
 	chooser_box = VBoxContainer.new()
 	chooser_box.add_theme_constant_override("separation", 14)
 	stack.add_child(chooser_box)
@@ -206,7 +197,7 @@ func _build() -> void:
 	cancel_button.pressed.connect(close)
 	chooser_box.add_child(cancel_button)
 
-	# --- Bloc PROGRESSION / PRÊT ---
+# Bloc PROGRESSION / PRÊT
 	status_box = VBoxContainer.new()
 	status_box.add_theme_constant_override("separation", 18)
 	stack.add_child(status_box)

@@ -1,10 +1,7 @@
 class_name BillsUI
 extends CanvasLayer
-## Panneau « BUREAU — FACTURES & FINANCES » : le bureau collé à l'ordinateur.
-## On y consulte les factures d'électricité (watts consommés × tarif), la
-## mensualité de connexion (abonnement), les revenus et le solde — avec le
-## bilan net par seconde. CanvasLayer + CenterContainer : toujours centré.
 
+# Panneau « BUREAU — FACTURES & FINANCES » : le bureau collé à l'ordinateur.
 var root_control: Control
 var list_box: VBoxContainer
 

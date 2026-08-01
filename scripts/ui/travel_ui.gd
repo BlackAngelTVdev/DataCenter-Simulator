@@ -1,11 +1,7 @@
 class_name TravelUI
 extends CanvasLayer
-## Menu « VOITURE » : liste les lieux accessibles (data/locations.gd).
-## S'ouvre en interagissant (E) ou en cliquant sur la voiture garée.
-## Les lieux verrouillés sont GRISÉS (bouton désactivé) ; « S'y rendre »
-## émet travel_requested(target) pour que le garage lance la téléportation.
-## CanvasLayer + CenterContainer : toujours centré à l'écran.
 
+# Menu « VOITURE » : liste les lieux accessibles (data/locations.gd).
 signal travel_requested(target: int)
 
 var root_control: Control

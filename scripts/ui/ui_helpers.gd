@@ -1,8 +1,6 @@
 class_name UIHelpers
-## Fonctions utilitaires pour construire des boutons stylés cohérents.
-## Les boutons utilisent les IMAGES cuites (button_normal/hover/pressed.png)
-## via UITheme — plus aucun StyleBoxFlat dessiné en code.
 
+# Fonctions utilitaires pour construire des boutons stylés cohérents.
 static func make_button(text: String, primary := false, min_size := Vector2(320, 54)) -> Button:
 	var btn := Button.new()
 	btn.text = text

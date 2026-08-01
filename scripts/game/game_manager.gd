@@ -1,9 +1,7 @@
 extends Node
-## État global de la partie (autoload, voir project.godot).
-## PAS de class_name : le nom d'autoload « GameManager » est déjà le point
-## d'accès global — un class_name identique entrerait en conflit à la
-## résolution statique.
 
+# État global de la partie (autoload, voir project.godot). Pas de class_name :
+# le nom « GameManager » est déjà l'accès global, un class_name entrerait en conflit.
 const START_CASH := 300.0
 const DEFAULT_ABO := "abo_1g"
 
@@ -30,7 +28,7 @@ var temperature := TEMP_AMBIANT
 var abo_id := DEFAULT_ABO
 var firewall_owned := false
 
-## --- Incidents réseau (DDoS / coupures de courant) ---
+# Incidents réseau (DDoS / coupures de courant)
 ## Événements transitoires gérés au tick par le garage : jamais sauvegardés.
 ## Le pare-feu bloque les DDoS ; les armoires avec onduleur (UPS) survivent
 ## aux coupures.
@@ -143,7 +141,7 @@ var online_servers := 0
 ## de clients de l'abonnement : c'est comme ça qu'on dépasse 400 clients.
 var proxy_boost := 0
 
-## --- Succès / trophées ---
+# Succès / trophées
 ## Succès débloqués (id -> true). Consultables dans le panneau Succès du PC.
 var achievements := {}
 ## Serveurs posés/montés au total (compteur du succès « Premier serveur »).
@@ -153,7 +151,7 @@ var cats_seen := 0
 ## Une attaque DDoS a-t-elle déjà été subie (succès « Vainqueur d'un DDoS ») ?
 var ddos_survived := false
 
-## --- Contrats d'entreprise ---
+# Contrats d'entreprise
 ## Contrats signés (id -> true) via la page « Contrats » du navigateur Renard :
 ## revenus GARANTIS par mois SI les exigences sont remplies (serveurs dédiés,
 ## clims, armoires…), sinon pénalité. Voir data/enterprise_contracts.gd.

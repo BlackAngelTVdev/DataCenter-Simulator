@@ -1,11 +1,6 @@
 extends Node
-## Test des attaques DDoS — exécuté comme SCÈNE (garage = racine = current_scene,
-## Test = enfant, comme dans le vrai jeu).
-##
-## Sans pare-feu : les serveurs passent HORS LIGNE (revenus à zéro, clients qui
-## fuient). Avec pare-feu : l'attaque est bloquée, rien ne s'arrête. À la fin de
-## l'attaque : retour à la normale.
 
+# Test des attaques DDoS — exécuté comme SCÈNE (garage = racine = current_scene,
 func _ready() -> void:
 	# Laisse le garage finir de construire (unités, HUD…).
 	await get_tree().process_frame

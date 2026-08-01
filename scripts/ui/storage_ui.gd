@@ -1,9 +1,7 @@
 class_name StorageUI
 extends CanvasLayer
-## Panneau de l'ÉTAGÈRE DE STOCKAGE : déposer l'objet porté pour libérer ses
-## mains, ou reprendre un objet stocké. S'ouvre au CENTRE de l'écran (même
-## pattern CanvasLayer que l'armoire / l'établi Pro).
 
+# Panneau de l'ÉTAGÈRE DE STOCKAGE : déposer l'objet porté pour libérer ses
 signal deposit_requested
 signal take_requested(slot: int)
 

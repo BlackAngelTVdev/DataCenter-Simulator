@@ -1,9 +1,7 @@
 class_name ComputerOS
 extends CanvasLayer
-## Le PC du garage : un faux bureau Debian (BianOS) avec le navigateur
-## « Renard » (boutique Tech'Occase) et un terminal.
-## S'ouvre avec E près de l'ordinateur, se ferme avec Échap ou « Éteindre ».
 
+# Le PC du garage : un faux bureau Debian (BianOS) avec le navigateur
 var root: Control
 var browser: OSBrowser
 var terminal: OSTerminal
@@ -60,7 +58,7 @@ func toast(text: String) -> void:
 	toast_timer.start()
 
 
-# ------------------------------------------------------------------ Construction
+# Construction
 func _build() -> void:
 	root = Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)

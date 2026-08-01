@@ -1,25 +1,8 @@
 class_name ProxyList
 extends RefCounted
-## ============================================================
-##  REVERSE PROXIES — logiciels installables à l'établi
-## ============================================================
-##  Un reverse proxy se pose SUR un serveur (comme un OS) : la machine ne
-##  stocke plus de clients directement, mais elle FAIT PASSER plus de monde
-##  sur le réseau du local courant (clients = bande passante en plus).
-##  C'est LE moyen de dépasser la limite de l'abonnement (400 clients avec
-##  la 400 Gbit/s) quand on tourne dans le Data Hall.
-##
-##  Champs :
-##    id       : identifiant unique (ex: "proxy_nginx")
-##    name     : nom affiché (fakes de nginx / HAProxy / Traefik)
-##    desc     : description affichée dans l'UI
-##    color    : couleur du logo
-##    clients  : nombre de clients EN LIGNE EN PLUS quand le proxy tourne
-##    heat     : chaleur produite par la machine qui exécute le proxy
-##    price    : prix de la LICENCE (achat unique au shop Tech'Occase)
-##
-##  Copie-colle un bloc { ... } pour ajouter un nouveau proxy facilement.
 
+# Reverse proxies installables à l'établi : la machine fait passer plus de
+# monde sur le réseau (dépasse la limite de l'abonnement). Licence achat unique.
 const PROXIES := [
 	{
 		"id": "proxy_nginx",

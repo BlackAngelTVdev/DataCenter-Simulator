@@ -1,11 +1,7 @@
 class_name RadioUnit
 extends StaticBody2D
-## La radio du garage, posée à côté de l'établi. E l'allume/l'éteint.
-## Quand elle joue, elle enchaîne TOUTES les pistes du dossier
-## assets/radio-garage/ (on ajoute un son dans ce dossier -> la radio le
-## diffuse). Rendu : corps en IMAGE cuite (radio.png) + LED d'état + petite
-## barre d'égaliseur dessinée quand ça joue.
 
+# La radio du garage, posée à côté de l'établi.
 const SIZE := Vector2(26, 20)
 
 var kind := "radio"

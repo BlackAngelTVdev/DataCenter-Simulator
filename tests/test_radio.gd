@@ -1,8 +1,6 @@
 extends Node
-## Test de la radio du garage — exécuté comme SCÈNE (garage = racine,
-## Test = enfant). Vérifie que la radio charge les sons du dossier
-## assets/radio-garage/ et s'allume/s'éteint avec le bouton E.
 
+# Test de la radio du garage — exécuté comme SCÈNE (garage = racine,
 func _ready() -> void:
 	await get_tree().process_frame
 	var garage := get_parent() as GarageScene

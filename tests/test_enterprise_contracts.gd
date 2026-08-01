@@ -1,11 +1,6 @@
 extends Node
-## Test des CONTRATS D'ENTREPRISE — exécuté comme SCÈNE avec un garage parent
-## (même pattern que test_ddos : le garage est la racine = current_scene).
-##
-## Vérifie que : (1) un contrat sans serveur dédié NI clims ne rapporte rien
-## (pénalité), (2) avec les exigences remplies il rapporte le revenu garanti,
-## (3) signer puis re-signer ne double pas.
 
+# Test des CONTRATS D'ENTREPRISE — exécuté comme SCÈNE avec un garage parent
 func _ready() -> void:
 	await get_tree().process_frame
 	var garage := get_parent() as GarageScene

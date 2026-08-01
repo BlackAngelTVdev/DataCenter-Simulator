@@ -1,33 +1,8 @@
 class_name ShopCatalog
 extends RefCounted
-## ============================================================
-##  CATALOGUE DE LA BOUTIQUE « Tech'Occase »
-## ============================================================
-##  C'est ICI qu'on ajoute facilement des machines au jeu !
-##
-##  Copie-colle un bloc { ... } dans la liste de ton choix,
-##    change les valeurs, relance le jeu : la boutique en ligne
-##    (navigateur « Renard ») se met à jour toute seule.
-##
-##  Champs communs :
-##    id        : identifiant unique (sans espaces, ex: "server_faucon")
-##    kind      : "server" | "furniture" | "upgrade" | "abo"  (ne pas toucher)
-##    name      : nom affiché
-##    desc      : description affichée dans la boutique
-##    price     : prix en $
-##    color     : couleur de l'icône / du colis
-##
-##  Pour les SERVEURS, en plus :
-##    slots     : nombre max de clients hébergés
-##    income    : $ gagnés par client et par seconde
-##    watts     : consommation électrique (info)
-##    heat      : chaleur produite (fait monter la température du garage)
 
-
-# ------------------------------------------------------------------
-#  SERVEURS — le cœur du business. Plus ils sont chers, plus ils
-#  hébergent de clients et rapportent.
-# ------------------------------------------------------------------
+# Catalogue de la boutique (Tech'Occase + ServeurLab). Copie-colle un bloc
+# pour ajouter un article : il apparaît automatiquement sur le site.
 const SERVERS := [
 	{
 		"id": "server_panda",
@@ -71,10 +46,8 @@ const SERVERS := [
 ]
 
 
-# ------------------------------------------------------------------
 #  MOBILIER — à poser directement au sol, sans OS.
 #  Exemple : l'armoire fait héberger 2x plus de clients aux serveurs.
-# ------------------------------------------------------------------
 const FURNITURE := [
 	{
 		"id": "rack_armoire",
@@ -97,7 +70,6 @@ const FURNITURE := [
 ]
 
 
-# ------------------------------------------------------------------
 #  SWITCHES RÉSEAU — OBLIGATOIRES dans CHAQUE armoire : sans switch, les
 #  serveurs montés ne sont PAS branchés au réseau (aucun revenu, aucune
 #  activité). Les switches coûtent cher : c'est le ticket d'entrée d'un
@@ -108,7 +80,6 @@ const FURNITURE := [
 #  3 = nœud VPS Proxmousse). Au-delà de la capacité du switch, les
 #  derniers serveurs montés ne sont PAS branchés (aucun revenu). Au
 #  garage, la gestion reste chill : le switch suffit, pas de limite de ports.
-# ------------------------------------------------------------------
 const SWITCHES := [
 	{
 		"id": "switch_8p",
@@ -133,11 +104,9 @@ const SWITCHES := [
 ]
 
 
-# ------------------------------------------------------------------
 #  BATTERIES / ONDULEURS — se montent dans le slot batterie d'une armoire
 #  Pro. Un onduleur stabilise l'alimentation : -30% de chaleur pour les
 #  serveurs de l'armoire.
-# ------------------------------------------------------------------
 const BATTERIES := [
 	{
 		"id": "batterie_ups",
@@ -150,12 +119,10 @@ const BATTERIES := [
 ]
 
 
-# ------------------------------------------------------------------
 #  CLIMATISEURS — à poser où on veut au sol. Chaque clim soustrait sa
 #  puissance « cooling » à la chaleur des serveurs : au-delà de 50 °C,
 #  les serveurs S'ARRÊTENT (plus de revenus !). Plus on a de serveurs,
 #  plus il faut de clims (ou de meilleures clims).
-# ------------------------------------------------------------------
 const CLIMS := [
 	{
 		"id": "clim_ventilo",
@@ -190,11 +157,9 @@ const CLIMS := [
 ]
 
 
-# ------------------------------------------------------------------
 #  LOCAUX — augmentent la limite d'armoires du garage. Le garage de
 #  départ n'accepte que 3 armoires ; chaque local acheté en ajoute
 #  (rack_bonus) de plus. Copie-colle un bloc pour de nouvelles tailles.
-# ------------------------------------------------------------------
 const LOCALS := [
 	{
 		"id": "local_voisin",
@@ -217,13 +182,11 @@ const LOCALS := [
 ]
 
 
-# ------------------------------------------------------------------
 #  PARTENARIATS — signe un deal avec un constructeur : ses machines te
 #  coûtent MOINS CHER à l'achat (buy_discount), mais les clients hébergés
 # dessus paient MOINS (income_penalty : revenus par client réduits).
 #  Un vrai trade-off : parfait pour scaler vite, moins rentable à terme.
 #  target = id du serveur concerné.
-# ------------------------------------------------------------------
 const PARTNERSHIPS := [
 	{
 		"id": "partner_panda",
@@ -261,10 +224,8 @@ const PARTNERSHIPS := [
 ]
 
 
-# ------------------------------------------------------------------
 #  AMÉLIORATIONS — s'appliquent immédiatement à l'achat.
 #  Exemple : le pare-feu booste tous les revenus.
-# ------------------------------------------------------------------
 const UPGRADES := [
 	{
 		"id": "upgrade_firewall",
@@ -277,10 +238,8 @@ const UPGRADES := [
 ]
 
 
-# ------------------------------------------------------------------
 #  ABONNEMENTS — limitent le nombre de clients en ligne EN MÊME TEMPS.
 #  Quand la connexion sature, il faut en acheter un meilleur.
-# ------------------------------------------------------------------
 const ABOS := [
 	{
 		"id": "abo_1g",
@@ -325,14 +284,10 @@ const ABOS := [
 ]
 
 
-# ------------------------------------------------------------------
 #  Helper : tout le catalogue mélangé, pour la boutique en ligne.
-# ------------------------------------------------------------------
-# ------------------------------------------------------------------
 #  VIE DU GARAGE — petites douceurs. La nourriture pour chat se verse
 #  dans la GAMELLE (à côté de l'étagère) : le chat devient un habitué
 #  qui reste dans le garage.
-# ------------------------------------------------------------------
 const GOODIES := [
 	{
 		"id": "cat_food",
@@ -345,11 +300,9 @@ const GOODIES := [
 ]
 
 
-# ------------------------------------------------------------------
 #  ACCESSOIRES POUR CHAT — à poser au sol comme la déco. Le chat adopté du
 #  garage les utilise VRAIMENT : cat_spot indique l'usage (tree / litter /
 #  scratch / bed) lu par le GarageCat pour y aller de temps en temps.
-# ------------------------------------------------------------------
 const CAT_STUFF := [
 	{
 		"id": "cat_tree",
@@ -394,11 +347,9 @@ const CAT_STUFF := [
 ]
 
 
-# ------------------------------------------------------------------
 #  DÉCO — à poser où on veut au sol, juste pour le style (et parfois un
 #  petit bonus). heat_bonus = fraction de chaleur EN MOINS dans le local
 #  (0.01 = -1%). Une plante refroidit un peu ; une affiche ou un néon, non.
-# ------------------------------------------------------------------
 const DECOR := [
 	{
 		"id": "deco_poster",
@@ -472,13 +423,11 @@ static func is_partner(server_id: String) -> bool:
 	return not p.is_empty() and GameManager.owns(str(p.get("id", "")))
 
 
-# ------------------------------------------------------------------
 #  MARCHÉ FLUCTUANT — les prix de Tech'Occase varient avec le temps.
 #  MARKET_DAY_SECONDS = durée (en secondes réelles) d'un « jour de marché ».
 #  market_multiplier(id) est DÉTERMINISTE (même serveur + même jour => même
 #  prix) : on peut donc acheter bas, stocker sur l'étagère et revendre quand
 #  le marché remonte. C'est le mini-jeu de trading.
-# ------------------------------------------------------------------
 const MARKET_DAY_SECONDS := 300.0
 const MARKET_MIN := 0.7
 const MARKET_MAX := 1.5

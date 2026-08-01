@@ -1,16 +1,6 @@
 extends Node
-## Test de l'autosave — exécuté comme SCÈNE (garage = racine = current_scene,
-## Test = enfant, comme dans le vrai jeu).
-##
-## Vérifie :
-##  1. _autosave() crée une sauvegarde dans un emplacement libre (current_slot >= 0).
-##  2. La sauvegarde contient bien l'état (money == GameManager.cash).
-##  3. Un second _autosave() réutilise le MÊME emplacement (pas de duplication).
-##
-## ATTENTION : ce test écrit VRAIMENT dans user://saves/ — il nettoie donc
-## l'emplacement créé en fin de test (delete_slot), pour ne pas polluer les
-## vraies sauvegardes du joueur ni le « Reprendre » du menu (latest_slot).
 
+# Test de l'autosave — exécuté comme SCÈNE (garage = racine = current_scene,
 func _ready() -> void:
 	await get_tree().process_frame
 	var garage := get_parent() as GarageScene

@@ -1,11 +1,6 @@
 extends Node
-## Test de l'usure / des pannes des serveurs — exécuté comme SCÈNE
-## (garage = racine = current_scene, Test = enfant, comme dans le vrai jeu).
-##
-## Vérifie que : (1) un serveur qui tourne s'use à chaque tick, (2) un serveur
-## en PANNE ne produit plus rien, (3) la maintenance (E) le répare en déduisant
-## le coût du cash, (4) la revente baisse selon l'état (usé / en panne).
 
+# Test de l'usure / des pannes des serveurs — exécuté comme SCÈNE
 func _ready() -> void:
 	await get_tree().process_frame
 	var garage := get_parent() as GarageScene

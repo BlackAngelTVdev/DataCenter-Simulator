@@ -1,13 +1,7 @@
 class_name GarageCat
 extends Node2D
-## Le chat du quartier : entre parfois dans le garage (événement aléatoire
-## déclenché par garage_scene), se balade quelques secondes entre les racks,
-## puis ressort par la porte de livraison. Pure ambiance — aucune mécanique,
-## aucun impact sur le gameplay.
-## Le CORPS est une IMAGE cuite (assets/images/baked/misc/cat.png) : aucune
-## forme dessinée en jeu. La seule chose dynamique au runtime, c'est le flip
-## horizontal selon la direction de déplacement.
 
+# Le chat du quartier : entre parfois dans le garage (événement aléatoire
 const SPEED := 70.0
 const LIFETIME := 16.0  # secondes avant de ressortir (chat NON adopté)
 const DOOR_POS := Vector2(672, 600)  # porte de livraison du garage

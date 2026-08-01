@@ -1,12 +1,6 @@
 extends Node
-## Test du REVERSE PROXY — exécuté comme SCÈNE avec un garage parent.
-##
-## Vérifie que : (1) un serveur avec proxy ne stocke AUCUN client (max 0,
-## revenu 0) et n'est jamais « SATURÉ », (2) il ajoute de la bande passante
-## (proxy_boost + bandwidth_limit) au local courant, (3) le boost ne compte
-## que si le proxy est EN LIGNE (arrêté -> 0), (4) la sérialisation garde le
-## proxy installé.
 
+# Test du REVERSE PROXY — exécuté comme SCÈNE avec un garage parent.
 func _ready() -> void:
 	await get_tree().process_frame
 	var garage := get_parent() as GarageScene

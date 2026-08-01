@@ -1,12 +1,6 @@
 class_name Visuals
-## ============================================================
-##  RENDU PROCÉDURAL — helpers partagés pour de belles textures
-## ============================================================
-##  Tout le jeu est dessiné en code (aucune image externe) : ces helpers
-##  ajoutent du grain, des variations par case, des halos de lumière et des
-##  ombres douces pour un rendu « habité » au lieu de rectangles plats.
-##  Les textures de bruit sont générées UNE FOIS et mises en cache.
 
+# RENDU PROCÉDURAL — helpers partagés pour de belles textures
 static var _grain: Texture2D = null
 static var _speck: Texture2D = null
 static var _rng := RandomNumberGenerator.new()
