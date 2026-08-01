@@ -5,12 +5,10 @@ extends StaticBody2D
 ## assets/radio-garage/ (on ajoute un son dans ce dossier -> la radio le
 ## diffuse). Rendu : corps en IMAGE cuite (radio.png) + LED d'état + petite
 ## barre d'égaliseur dessinée quand ça joue.
-## bake_mode = rendu procédural corps-seul (tools/bake_assets).
 
 const SIZE := Vector2(26, 20)
 
 var kind := "radio"
-var bake_mode := false
 var on := false
 
 var _body: Sprite2D
@@ -28,18 +26,17 @@ func _ready() -> void:
 	rect.size = SIZE
 	shape.shape = rect
 	add_child(shape)
-	if not bake_mode:
-		_body = Sprite2D.new()
-		_body.texture = BakedAssets.tex("radio")
-		add_child(_body)
-		_led = Sprite2D.new()
-		_led.texture = BakedAssets.tex("led_grey")
-		_led.position = Vector2(-SIZE.x / 2 + 6, -SIZE.y / 2 + 6)
-		add_child(_led)
-		_player = AudioStreamPlayer.new()
-		add_child(_player)
-		_player.finished.connect(_on_track_finished)
-		_load_tracks()
+	_body = Sprite2D.new()
+	_body.texture = BakedAssets.tex("radio")
+	add_child(_body)
+	_led = Sprite2D.new()
+	_led.texture = BakedAssets.tex("led_grey")
+	_led.position = Vector2(-SIZE.x / 2 + 6, -SIZE.y / 2 + 6)
+	add_child(_led)
+	_player = AudioStreamPlayer.new()
+	add_child(_player)
+	_player.finished.connect(_on_track_finished)
+	_load_tracks()
 	queue_redraw()
 
 
@@ -98,9 +95,6 @@ func _update_led() -> void:
 
 
 func _draw() -> void:
-	if bake_mode:
-		_draw_procedural()
-		return
 	# Petite barre d'égaliseur animée quand la radio joue
 	if on:
 		var t := Time.get_ticks_msec() / 1000.0
@@ -110,21 +104,3 @@ func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	draw_string(font, Vector2(-40, SIZE.y / 2 + 14), "RADIO — %s" % ("ON" if on else "OFF"), \
 		HORIZONTAL_ALIGNMENT_CENTER, 80, 9, Color(1, 1, 1, 0.7))
-
-
-# ------------------------------------------------------------------ bake
-func _draw_procedural() -> void:
-	## Corps NET (sans LED ni texte) pour tools/bake_assets.
-	Visuals.draw_soft_shadow(self, Rect2(-SIZE.x / 2, -SIZE.y / 2, SIZE.x, SIZE.y), 5.0)
-	Visuals.draw_panel_texture(self, Rect2(-SIZE.x / 2, -SIZE.y / 2, SIZE.x, SIZE.y), Color(0.2, 0.22, 0.3))
-	draw_rect(Rect2(-SIZE.x / 2, -SIZE.y / 2, SIZE.x, SIZE.y), Color(1, 1, 1, 0.25), false, 1.0)
-	# Haut-parleur (grille)
-	draw_rect(Rect2(-8, -6, 14, 9), Color(0.07, 0.08, 0.12))
-	for i in range(4):
-		draw_line(Vector2(-8, -5 + i * 2.5), Vector2(6, -5 + i * 2.5), Color(0.4, 0.45, 0.55, 0.8), 1.0)
-	# Cadran / molette
-	draw_circle(Vector2(8, -2), 3.2, Color(0.3, 0.85, 0.5))
-	draw_circle(Vector2(8, -2), 1.2, Color(0.8, 1.0, 0.9))
-	# Antenne
-	draw_line(Vector2(-9, -9), Vector2(-13, -16), Color(0.45, 0.5, 0.6), 1.5)
-	draw_circle(Vector2(-13, -16), 1.5, Color(0.6, 0.7, 0.85))

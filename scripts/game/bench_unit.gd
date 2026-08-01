@@ -6,7 +6,6 @@ extends StaticBody2D
 ## l'installation continue même quand le panneau est fermé.
 ## Le CORPS est une IMAGE cuite (bench_pro.png) ; les baies (serveur, LED,
 ## progression) sont dessinées avec des textures cuites par-dessus.
-## bake_mode = rendu procédural corps-seul (tools/bake_assets).
 
 const BAYS := 2
 const INSTALL_TIME := 4.0  # secondes par baie
@@ -15,7 +14,6 @@ const SIZE := Vector2(66, 30)
 
 var cell := Vector2i(4, 12)  # case de la grille (sauvegarde)
 var bays: Array = []
-var bake_mode := false
 
 var _body: Sprite2D
 
@@ -30,10 +28,9 @@ func _ready() -> void:
 	add_child(shape)
 	for i in range(BAYS):
 		bays.append(_empty_bay())
-	if not bake_mode:
-		_body = Sprite2D.new()
-		_body.texture = BakedAssets.tex("bench_pro")
-		add_child(_body)
+	_body = Sprite2D.new()
+	_body.texture = BakedAssets.tex("bench_pro")
+	add_child(_body)
 	queue_redraw()
 
 
@@ -185,9 +182,6 @@ func restore_bays(data: Variant) -> void:
 
 
 func _draw() -> void:
-	if bake_mode:
-		_draw_procedural()
-		return
 	# --- Runtime : baies dessinées avec des textures cuites ---
 	var bay_w := (SIZE.x - 12.0) / BAYS
 	for i in range(BAYS):
@@ -218,29 +212,3 @@ func _draw() -> void:
 			# Barre de réparation en rouge, installation en orange/vert.
 			var fill_tex := "bar_fill_red" if bay.get("repairing", false) else "bar_fill"
 			draw_texture_rect(BakedAssets.tex(fill_tex), Rect2(bx + 4, SIZE.y / 2 - 8, fill_w, 4), false)
-
-
-# ------------------------------------------------------------------ bake
-func _draw_procedural() -> void:
-	## Corps seul (utilisé par tools/bake_assets) : plan de travail + baies vides.
-	Visuals.draw_soft_shadow(self, Rect2(-SIZE.x / 2, -SIZE.y / 2, SIZE.x, SIZE.y), 5.0)
-	draw_rect(Rect2(-SIZE.x / 2, -SIZE.y / 2, SIZE.x, SIZE.y), Color(0.38, 0.28, 0.19))
-	draw_rect(Rect2(-SIZE.x / 2, -SIZE.y / 2, SIZE.x, SIZE.y * 0.45), Color(0.48, 0.36, 0.25))
-	for i in range(5):
-		var gy := -SIZE.y / 2 + 3 + i * 6
-		draw_line(Vector2(-SIZE.x / 2, gy), Vector2(SIZE.x / 2, gy + 2), \
-			Color(0.25, 0.18, 0.12, 0.35), 1.0)
-	draw_rect(Rect2(-SIZE.x / 2, -SIZE.y / 2, SIZE.x, SIZE.y), Color(1, 1, 1, 0.16), false, 1.5)
-
-	var bay_w := (SIZE.x - 12.0) / BAYS
-	for i in range(BAYS):
-		var bx := -SIZE.x / 2 + 6 + i * bay_w
-		var r := Rect2(bx, -SIZE.y / 2 + 5, bay_w - 6, SIZE.y - 12)
-		draw_rect(r, Color(0.15, 0.17, 0.22))
-		draw_rect(r, Color(1, 1, 1, 0.22), false, 1.0)
-		draw_texture_rect(BakedAssets.tex("led_grey"), \
-			Rect2(bx + 2, -SIZE.y / 2 + 8, 5, 5), false)
-
-	var font := ThemeDB.fallback_font
-	draw_string(font, Vector2(-70, SIZE.y / 2 + 14), "ÉTABLI PRO — 2 BAIES", \
-		HORIZONTAL_ALIGNMENT_CENTER, 140, 9, Color(1, 1, 1, 0.7))

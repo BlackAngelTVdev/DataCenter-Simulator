@@ -1,7 +1,6 @@
 class_name BakedAssets
 ## Charge les IMAGES cuites (assets/images/baked/) — le jeu n'a plus aucun
-## dessin procédural : tout est rendu hors-écran une fois par le bake tool
-## (tools/bake_assets.tscn) puis chargé comme Sprite2D / StyleBoxTexture.
+## dessin procédural : tout est en image, chargé comme Sprite2D / StyleBoxTexture.
 ## _cache évite de recharger les textures à chaque instance.
 
 const DIR := "res://assets/images/baked/"

@@ -5,7 +5,7 @@ extends StaticBody2D
 ## clients. L'armoire Pro a aussi un slot BATTERIE (onduleur) qui réduit de
 ## 30% la chaleur produite par ses serveurs. Bloque le passage.
 ## Le CORPS est une IMAGE cuite (assets/images/baked/racks/rack_*.png) ; la bande
-## batterie est un sprite superposé. bake_mode = rendu procédural (bake tool).
+## batterie est un sprite superposé.
 
 const MAX_MOUNTS := 2  # défaut (armoire standard)
 const SIZE := Vector2(40, 30)  # taille standard
@@ -20,7 +20,6 @@ var battery: Dictionary = {}  # item de la batterie installée (vide = aucune)
 ## ne sont PAS branchés au réseau (aucun revenu, aucune activité).
 var switch_item: Dictionary = {}  # item du switch installé (vide = aucun)
 var box_size := SIZE
-var bake_mode := false    # rendu procédural complet pour le bake tool
 
 var _body: Sprite2D
 var _battery_sprite: Sprite2D
@@ -38,8 +37,7 @@ func _ready() -> void:
 	rect.size = box_size
 	shape.shape = rect
 	add_child(shape)
-	if not bake_mode:
-		_build_sprites()
+	_build_sprites()
 	queue_redraw()
 
 
@@ -162,62 +160,3 @@ func mount(server: ServerUnit) -> void:
 	queue_redraw()
 
 
-func _draw() -> void:
-	if bake_mode:
-		_draw_procedural()
-		return
-	# Runtime : rien de plus — le corps est le sprite, la bande batterie est
-	# un sprite superposé (visible quand une batterie est installée).
-
-
-# ------------------------------------------------------------------ bake
-func _draw_procedural() -> void:
-	## Armoire complète dessinée (utilisée uniquement par tools/bake_assets).
-	var bs := box_size
-	Visuals.draw_soft_shadow(self, Rect2(-bs.x / 2, -bs.y / 2, bs.x, bs.y), 5.0)
-	Visuals.draw_panel_texture(self, Rect2(-bs.x / 2, -bs.y / 2, bs.x, bs.y), Color(0.19, 0.23, 0.33))
-	draw_rect(Rect2(-bs.x / 2 - 2, bs.y / 2 - 3, 4, 6), Color(0.1, 0.1, 0.14))
-	draw_rect(Rect2(bs.x / 2 - 2, bs.y / 2 - 3, 4, 6), Color(0.1, 0.1, 0.14))
-
-	# Emplacements serveurs (alvéoles creusées : vide = sombre)
-	var slot_w := (bs.x - 10.0) / slots
-	for i in range(slots):
-		var r := Rect2(-bs.x / 2 + 5 + i * slot_w, -bs.y / 2 + 4, slot_w - 4, bs.y - 8)
-		draw_rect(Rect2(r.position + Vector2(1, 2), r.size), Color(0, 0, 0, 0.35))
-		draw_rect(r, Color(0.27, 0.31, 0.40))
-		if i < mounted.size():
-			var col: Color = mounted[i].item.get("color", Color(0.5, 0.5, 0.6))
-			draw_rect(Rect2(r.position + Vector2(1, 1), r.size - Vector2(2, 2)), col)
-			draw_rect(Rect2(r.position + Vector2(1, 1), r.size - Vector2(2, 2)), Color(1, 1, 1, 0.2), false, 1.0)
-			Visuals.draw_glow(self, Vector2(r.position.x + 4, r.position.y + 4), 4.0, Color(0.3, 0.9, 0.5), 0.9)
-		else:
-			draw_rect(r, Color(1, 1, 1, 0.06), false, 1.0)
-
-	# Switch réseau (obligatoire) : bandeau haut — rouge si absent (pas de
-	# réseau : les serveurs montés ne rapportent rien), vert si installé.
-	var sr := Rect2(-bs.x / 2 + 5, -bs.y / 2 + 1, bs.x - 10, 5)
-	draw_rect(Rect2(sr.position + Vector2(0, 1), sr.size), Color(0, 0, 0, 0.35))
-	if not switch_item.is_empty():
-		draw_rect(sr, Color(0.3, 0.8, 0.95))
-		draw_rect(sr, Color(0.75, 0.95, 1.0, 0.6), false, 1.0)
-		Visuals.draw_glow(self, Vector2(-bs.x / 2 + 8, -bs.y / 2 + 3), 5.0, Color(0.35, 0.85, 1.0), 1.0)
-	else:
-		draw_rect(sr, Color(0.55, 0.18, 0.18))
-		draw_rect(sr, Color(1, 0.4, 0.4, 0.35), false, 1.0)
-
-	# Slot batterie (armoire Pro) : bandeau bas — vert lumineux si occupé
-	if battery_slot:
-		var br := Rect2(-bs.x / 2 + 5, bs.y / 2 - 8, bs.x - 10, 5)
-		draw_rect(Rect2(br.position + Vector2(0, 1), br.size), Color(0, 0, 0, 0.35))
-		if not battery.is_empty():
-			draw_rect(br, Color(0.3, 0.85, 0.5))
-			draw_rect(br, Color(0.7, 1.0, 0.8, 0.6), false, 1.0)
-			Visuals.draw_glow(self, Vector2(bs.x / 2 - 8, bs.y / 2 - 5), 6.0, Color(0.3, 0.9, 0.5), 1.1)
-		else:
-			draw_rect(br, Color(0.15, 0.18, 0.24))
-			draw_rect(br, Color(1, 1, 1, 0.15), false, 1.0)
-
-	var font := ThemeDB.fallback_font
-	var tag := "ARM PRO 19\"" if slots >= 4 else "ARM 19\""
-	draw_string(font, Vector2(-bs.x / 2, bs.y / 2 + 12), tag, \
-		HORIZONTAL_ALIGNMENT_LEFT, bs.x, 9, Color(1, 1, 1, 0.65))

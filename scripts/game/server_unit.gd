@@ -4,7 +4,6 @@ extends StaticBody2D
 ## produit de la chaleur, et affiche sa saturation. Bloque le passage.
 ## Le CORPS est une IMAGE cuite (assets/images/baked/servers/server_*.png) ; seules
 ## les infos dynamiques (LED, texte, bulle « SATURÉ ») sont dessinées.
-## bake_mode = true : rendu procédural complet (utilisé par tools/bake_assets).
 
 const SIZE := Vector2(30, 22)
 
@@ -16,7 +15,6 @@ var clients := 0
 var rack: RackUnit = null  # armoire dans laquelle il est monté (sinon null)
 var was_full_announced := false
 var cable: Node2D = null  # câble réseau (libéré au déranquage / au montage en armoire)
-var bake_mode := false    # rendu procédural complet pour le bake tool
 
 ## Usure : 0 (neuf) à 1 (vieux). Augmente à chaque tick de fonctionnement.
 ## Plus l'usure est haute, plus la probabilité de PANNE augmente.
@@ -38,8 +36,7 @@ func _ready() -> void:
 	rect.size = SIZE
 	shape.shape = rect
 	add_child(shape)
-	if not bake_mode:
-		_build_sprites()
+	_build_sprites()
 	queue_redraw()
 
 
@@ -136,9 +133,6 @@ func is_saturated() -> bool:
 
 
 func _draw() -> void:
-	if bake_mode:
-		_draw_procedural()
-		return
 	# --- Rendu runtime : images + surcouches dynamiques ---
 	if _body != null:
 		_body.scale = Vector2.ONE * (0.6 if rack != null else 1.0)
@@ -187,16 +181,3 @@ func _draw() -> void:
 		var wcol := Color(0.3, 0.9, 0.4).lerp(Color(0.95, 0.35, 0.25), clampf(wear, 0.0, 1.0))
 		draw_rect(Rect2(wx, wy, bw * clampf(wear, 0.0, 1.0), 2), wcol)
 
-
-# ------------------------------------------------------------------ bake
-func _draw_procedural() -> void:
-	## Corps NET (sans LED / texte / bulle — les états dynamiques sont ajoutés
-	## par-dessus le sprite à l'exécution). Utilisé par tools/bake_assets.
-	var c: Color = item.get("color", Color(0.5, 0.5, 0.6))
-
-	Visuals.draw_soft_shadow(self, Rect2(-SIZE.x / 2, -SIZE.y / 2, SIZE.x, SIZE.y), 5.0)
-	Visuals.draw_panel_texture(self, Rect2(-SIZE.x / 2, -SIZE.y / 2, SIZE.x, SIZE.y - 5), c.darkened(0.18))
-	draw_rect(Rect2(-SIZE.x / 2, -SIZE.y / 2, SIZE.x, 7), c.lightened(0.4))
-	draw_rect(Rect2(-SIZE.x / 2, -SIZE.y / 2, SIZE.x, 7), Color(1, 1, 1, 0.25), false, 1.0)
-	for i in range(4):
-		draw_rect(Rect2(-SIZE.x / 2 + 4 + i * 7, SIZE.y / 2 - 10, 4, 3), Color(0, 0, 0, 0.35))

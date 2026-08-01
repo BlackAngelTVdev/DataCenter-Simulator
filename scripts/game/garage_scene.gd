@@ -2326,7 +2326,7 @@ func _autosave() -> void:
 # ------------------------------------------------------------------ Rendu du sol
 func _draw() -> void:
 	# Fond : image cuite du monde (sol, murs, cour, décor) — plus aucun dessin
-	# procédural à l'exécution : tools/bake_assets a rendu tout ça en PNG.
+	# procédural à l'exécution : tout est en image cuite (assets/images/baked/).
 	draw_texture(BakedAssets.tex("bg_local2" if location_id == 1 else "bg_garage"), Vector2.ZERO)
 	# Surbrillance de placement : quand on porte un serveur/armoire/batterie,
 	# les cases valides passent en vert léger et la case survolée se marque.
