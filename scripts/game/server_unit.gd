@@ -88,6 +88,9 @@ func heat() -> float:
 	var h := float(item.get("heat", 1.0)) * mult
 	if rack != null and rack.has_battery():
 		h *= 0.7  # onduleur : alimentation stabilisée, moins de chauffe
+	if rack != null and rack.has_switch():
+		# Switch de qualité : réseau plus frais (-10% sur le switch L3).
+		h *= (1.0 - rack.switch_heat_bonus())
 	return h
 
 

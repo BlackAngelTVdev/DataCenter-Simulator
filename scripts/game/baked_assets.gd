@@ -18,10 +18,14 @@ static func subdir_for(name: String) -> String:
 		return "servers/"
 	if base.begins_with("rack_") or base == "battery_strip":
 		return "racks/"
+	if base == "switch_strip":
+		return "switches/"
 	if base.begins_with("clim_"):
 		return "clims/"
 	if base.begins_with("decor_"):
 		return "decor/"
+	if base.begins_with("switch_") or base == "switch_strip":
+		return "switches/"
 	if base.begins_with("bg_"):
 		return "worlds/"
 	if base.begins_with("wallpaper_") or base.begins_with("icon_"):
@@ -91,4 +95,6 @@ static func item_tex(item: Dictionary) -> Texture2D:
 			return tex("clim_" + str(item.get("id", "")))
 		"decor":
 			return tex("decor_" + str(item.get("id", "")))
+		"switch":
+			return tex("switch_" + str(item.get("id", "")))
 	return tex("block")

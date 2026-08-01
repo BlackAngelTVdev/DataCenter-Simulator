@@ -16,11 +16,15 @@ var mounted: Array[ServerUnit] = []
 var slots := MAX_MOUNTS
 var battery_slot := false  # armoire Pro : accepte une batterie (onduleur)
 var battery: Dictionary = {}  # item de la batterie installée (vide = aucune)
+## Switch RÉSEAU de l'armoire : OBLIGATOIRE. Sans switch, les serveurs montés
+## ne sont PAS branchés au réseau (aucun revenu, aucune activité).
+var switch_item: Dictionary = {}  # item du switch installé (vide = aucun)
 var box_size := SIZE
 var bake_mode := false    # rendu procédural complet pour le bake tool
 
 var _body: Sprite2D
 var _battery_sprite: Sprite2D
+var _switch_sprite: Sprite2D
 
 
 func _ready() -> void:
@@ -48,6 +52,12 @@ func _build_sprites() -> void:
 	_battery_sprite.position = Vector2(0, box_size.y / 2 - 5)
 	_battery_sprite.visible = false
 	add_child(_battery_sprite)
+	# Bandeau switch : visible dès qu'un switch est installé (porte le réseau).
+	_switch_sprite = Sprite2D.new()
+	_switch_sprite.texture = BakedAssets.tex("switch_strip")
+	_switch_sprite.position = Vector2(0, -box_size.y / 2 + 4)
+	_switch_sprite.visible = false
+	add_child(_switch_sprite)
 
 
 func has_free_slot() -> bool:
@@ -60,6 +70,27 @@ func has_free_battery_slot() -> bool:
 
 func has_battery() -> bool:
 	return not battery.is_empty()
+
+
+func has_switch() -> bool:
+	## Un switch réseau est-il installé ? (OBLIGATOIRE pour que les serveurs
+	## montés soient branchés au réseau et rapportent.)
+	return not switch_item.is_empty()
+
+
+func mount_switch(item_dict: Dictionary) -> bool:
+	if has_switch():
+		return false
+	switch_item = item_dict.duplicate(true)
+	if _switch_sprite != null:
+		_switch_sprite.visible = true
+	queue_redraw()
+	return true
+
+
+func switch_heat_bonus() -> float:
+	## Réduction de chaleur offerte par le switch installé (0 = aucun bonus).
+	return float(switch_item.get("quality", 0.0))
 
 
 func mount_battery(item_dict: Dictionary) -> bool:
@@ -113,6 +144,18 @@ func _draw_procedural() -> void:
 			Visuals.draw_glow(self, Vector2(r.position.x + 4, r.position.y + 4), 4.0, Color(0.3, 0.9, 0.5), 0.9)
 		else:
 			draw_rect(r, Color(1, 1, 1, 0.06), false, 1.0)
+
+	# Switch réseau (obligatoire) : bandeau haut — rouge si absent (pas de
+	# réseau : les serveurs montés ne rapportent rien), vert si installé.
+	var sr := Rect2(-bs.x / 2 + 5, -bs.y / 2 + 1, bs.x - 10, 5)
+	draw_rect(Rect2(sr.position + Vector2(0, 1), sr.size), Color(0, 0, 0, 0.35))
+	if not switch_item.is_empty():
+		draw_rect(sr, Color(0.3, 0.8, 0.95))
+		draw_rect(sr, Color(0.75, 0.95, 1.0, 0.6), false, 1.0)
+		Visuals.draw_glow(self, Vector2(-bs.x / 2 + 8, -bs.y / 2 + 3), 5.0, Color(0.35, 0.85, 1.0), 1.0)
+	else:
+		draw_rect(sr, Color(0.55, 0.18, 0.18))
+		draw_rect(sr, Color(1, 0.4, 0.4, 0.35), false, 1.0)
 
 	# Slot batterie (armoire Pro) : bandeau bas — vert lumineux si occupé
 	if battery_slot:
