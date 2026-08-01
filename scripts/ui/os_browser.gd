@@ -33,6 +33,7 @@ var current_page := "shop"  # "shop" | "monitor" | "partnership"
 var mon_conn_bar: ProgressBar
 var mon_conn_label: Label
 var mon_conn_status: Label
+var mon_incident: Label
 var mon_servers_box: VBoxContainer
 var mon_tick_label: Label
 var monitor_timer: Timer
@@ -491,6 +492,10 @@ func _render_monitor() -> void:
 	mon_conn_status.add_theme_font_size_override("font_size", 15)
 	conn_vb.add_child(mon_conn_status)
 
+	mon_incident = Label.new()
+	mon_incident.add_theme_font_size_override("font_size", 15)
+	conn_vb.add_child(mon_incident)
+
 	page_box.add_child(conn_card)
 
 	# --- Infrastructure (stats globales) ---
@@ -546,12 +551,15 @@ func _refresh_monitor() -> void:
 	# changement de page (queue_free), on re-rend la page avant de rafraîchir
 	# — le timer 1s ne peut plus tomber sur des nœuds libérés (crash freed).
 	if not is_instance_valid(mon_tick_label) or not is_instance_valid(mon_conn_bar) \
-			or not is_instance_valid(mon_conn_label) or not is_instance_valid(mon_servers_box):
+			or not is_instance_valid(mon_conn_label) or not is_instance_valid(mon_servers_box) \
+			or not is_instance_valid(mon_incident):
 		_render_monitor()
 		return
 	var garage := _garage()
 	if garage == null:
 		mon_tick_label.text = "— hors ligne —"
+		mon_incident.text = ""
+		mon_incident.visible = false
 		return
 	var gm := GameManager
 	var bw := gm.bandwidth_limit()
@@ -580,6 +588,22 @@ func _refresh_monitor() -> void:
 	else:
 		mon_conn_status.text = "Connexion OK (%.0f %%)" % (used * 100.0)
 		mon_conn_status.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
+
+	# Incidents réseau (DDoS / coupure de courant)
+	if GameManager.ddos_active:
+		if GameManager.firewall_owned:
+			mon_incident.text = "Attaque DDoS en cours — bloquée par le Pare-feu Forteresse."
+			mon_incident.add_theme_color_override("font_color", Color(0.6, 1.0, 0.6))
+		else:
+			mon_incident.text = "Attaque DDoS — serveurs HORS LIGNE (%d s restantes)." % GameManager.ddos_ticks_left
+			mon_incident.add_theme_color_override("font_color", Color(1.0, 0.4, 0.35))
+	elif GameManager.outage_active:
+		mon_incident.text = "Coupure de courant — serveurs sans UPS éteints (%d s restantes)." % GameManager.outage_ticks_left
+		mon_incident.add_theme_color_override("font_color", Color(1.0, 0.75, 0.3))
+	else:
+		mon_incident.text = ""
+	# Label masqué quand aucun incident : pas de ligne vide dans la carte.
+	mon_incident.visible = not mon_incident.text.is_empty()
 
 	# Infrastructure
 	mon_infra.get("servers", Label.new()).text = "%d" % gm.online_servers
@@ -642,10 +666,19 @@ func _server_monitor_card(s: ServerUnit) -> Control:
 	elif GameManager.overheated:
 		stat = "ARRÊT"
 		color = Color(1.0, 0.4, 0.35)
+	elif GameManager.ddos_active and not GameManager.firewall_owned:
+		stat = "HORS LIGNE (DDoS)"
+		color = Color(1.0, 0.4, 0.35)
+	elif GameManager.outage_active and (s.rack == null or not s.rack.has_battery()):
+		stat = "SANS ALIMENTATION"
+		color = Color(1.0, 0.4, 0.35)
 	else:
 		stat = "EN LIGNE"
 		color = Color(0.5, 1.0, 0.6)
-	var income_txt := "+%.2f $/s" % s.income_per_sec() if not GameManager.overheated else "+0.00 $/s"
+	var income_txt := "+0.00 $/s"
+	var m_garage := _garage()
+	if m_garage != null and m_garage._server_running(s):
+		income_txt = "+%.2f $/s" % s.income_per_sec()
 	clients_label.text = "%s · %d/%d clients · %s" % [
 		stat, s.clients, s.max_clients(), income_txt,
 	]
