@@ -945,6 +945,11 @@ func _bowl_interact() -> void:
 	if player.is_carrying():
 		var item := player.carried_item
 		if item.get("kind", "") == "catfood":
+			if GameManager.cat_fed:
+				# La gamelle est déjà pleine : ne pas gaspiller l'achat (le chat
+				# la videra tout seul de temps en temps).
+				hud.toast("La gamelle est déjà pleine — le chat mangera bientôt, garde ta nourriture.")
+				return
 			player.carried_item = {}
 			GameManager.cat_fed = true
 			GameManager.cat_adopted = true
@@ -992,6 +997,14 @@ func _refresh_bowl_food() -> void:
 	else:
 		if food != null:
 			food.queue_free()
+
+
+func _on_bowl_emptied() -> void:
+	## Le chat adopté a fini de manger : la gamelle est vide (le visuel est
+	## déjà rafraîchi par le chat via GameManager.cat_fed) — on prévient le
+	## joueur qu'il faudra la remplir à nouveau pour garder le chat.
+	_refresh_bowl_food()
+	hud.toast("Le chat a vidé sa gamelle ! Remplis-la à nouveau (nourriture 5 $ sur Tech'Occase) pour le garder.")
 
 
 func _bench_interact() -> void:
@@ -2420,6 +2433,8 @@ func _spawn_garage_cat(adopted := false) -> void:
 	garage_cat = GarageCat.new()
 	garage_cat.name = "GarageCat"
 	garage_cat.adopted = adopted
+	garage_cat.bowl_pos = _cell_center(_loc_bowl_cell())
+	garage_cat.bowl_emptied.connect(_on_bowl_emptied)
 	add_child(garage_cat)
 	if adopted:
 		hud.toast("Le chat ronronne près de toi. Il est chez lui, ici.")
