@@ -103,24 +103,31 @@ const FURNITURE := [
 #  activité). Les switches coûtent cher : c'est le ticket d'entrée d'un
 #  vrai rack. Se posent contre une armoire (comme les batteries).
 #  quality = qualité : meilleure qualité = moins de chaleur (switch actif).
+#  ports   = PORTS RÉSEAU disponibles (DATA HALL uniquement) : chaque
+#  serveur monté consomme des ports (1 = dédié, 2 = reverse proxy,
+#  3 = nœud VPS Proxmousse). Au-delà de la capacité du switch, les
+#  derniers serveurs montés ne sont PAS branchés (aucun revenu). Au
+#  garage, la gestion reste chill : le switch suffit, pas de limite de ports.
 # ------------------------------------------------------------------
 const SWITCHES := [
 	{
 		"id": "switch_8p",
 		"kind": "switch",
 		"name": "Switch 8 ports",
-		"desc": "Le switch de base : indispensable pour brancher une armoire au réseau. Sans lui, les serveurs montés ne rapportent RIEN.",
+		"desc": "Le switch de base : indispensable pour brancher une armoire au réseau. Sans lui, les serveurs montés ne rapportent RIEN. 8 ports réseau : limite vite atteinte au Data Hall.",
 		"price": 180,
 		"quality": 0.0,
+		"ports": 8,
 		"color": Color(0.3, 0.5, 0.8),
 	},
 	{
 		"id": "switch_24p",
 		"kind": "switch",
 		"name": "Switch L3 24 ports",
-		"desc": "Switch de gestion (L3) : plus fiable, ses serveurs chauffent -10%. Cher mais solide.",
+		"desc": "Switch de gestion (L3) : 24 ports réseau, plus fiable, ses serveurs chauffent -10%. Cher mais solide — le vrai switch du Data Hall.",
 		"price": 450,
 		"quality": 0.10,
+		"ports": 24,
 		"color": Color(0.25, 0.65, 0.9),
 	},
 ]
