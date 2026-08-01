@@ -90,6 +90,18 @@ var pending_teleport := -1
 ## Colis achetés sur Tech'Occase, en attente de ramassage à la livraison.
 var deliveries: Array = []
 
+## Travail en cours sur l'établi du GARAGE (installation d'OS ou réparation) :
+## {mode: "install"/"repair", os_id, seconds_left, item_id}. Traité au tick
+## par le garage (les deux locaux partagent le script) : le travail continue
+## TOUT SEUL en arrière-plan, même si on change de local — le joueur peut
+## vaquer à ses occupations, l'établi reste occupé (slot bloqué) pendant ce
+## temps. Sauvegardé dans game_save.gd.
+var bench_job := {}
+
+## Durées du travail à l'établi du garage.
+const BENCH_INSTALL_SECONDS := 2.0
+const BENCH_REPAIR_SECONDS := 120.0
+
 ## Le chat : la gamelle a-t-elle reçu de la nourriture ? Le chat est-il
 ## adopté (habitué du garage, il ne repart plus) ?
 var cat_fed := false
@@ -168,6 +180,7 @@ func reset() -> void:
 	worlds = {0: {}, 1: {}}
 	pending_teleport = -1
 	deliveries.clear()
+	bench_job = {}
 	cat_fed = false
 	cat_adopted = false
 	cat_pets = 0
