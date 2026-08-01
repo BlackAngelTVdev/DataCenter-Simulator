@@ -74,6 +74,12 @@ const LOCAL2_CRATE_SPOTS := [
 
 const AUTOSAVE_INTERVAL := 60.0  # sauvegarde automatique toutes les 60 s
 
+## E-mails aléatoires (pub / offres / newsletters) : probabilité de départ par
+## tick (1 s) et cooldown après réception — la boîte Mail se remplit au fil
+## de la partie, sans spammer.
+const MAIL_CHANCE := 0.006        # ~1 e-mail toutes les 3 min en moyenne
+const MAIL_COOLDOWN_MIN := 45     # 45 s minimum entre deux e-mails
+
 ## Incidents réseau (DDoS / coupures) : probabilité de départ par tick (1 s)
 ## et durées. Le pare-feu bloque les DDoS ; les armoires avec onduleur (UPS)
 ## survivent aux coupures. Ça rend enfin utiles le Pare-feu Forteresse et la
@@ -124,6 +130,7 @@ var occupied_cells := {}
 var crates: Array = []
 var tick := 0
 var bandwidth_warn_tick := 0
+var mail_cooldown := 0  # ticks restants avant le prochain e-mail aléatoire
 var _just_teleported := false
 var _overheat_announced := false  # toast de surchauffe déjà affiché (anti-spam)
 
@@ -1982,6 +1989,16 @@ func _proxy_boost() -> int:
 func _on_tick() -> void:
 	tick += 1
 	_update_incidents()
+	# E-mails aléatoires (pub / offres / newsletters) : cooldown puis chance de
+	# départ — la boîte Mail se remplit au fil de la partie (les deux locaux
+	# partagent le script, l'arrivée fonctionne partout).
+	if mail_cooldown > 0:
+		mail_cooldown -= 1
+	elif randf() < MAIL_CHANCE:
+		GameManager.receive_random_mail()
+		mail_cooldown = MAIL_COOLDOWN_MIN + randi() % 120
+		if is_instance_valid(hud):
+			hud.toast("Nouvel e-mail dans ta boîte Mail ! (PC) — publicité, offre ou newsletter…")
 	# Bande passante des reverse proxies EN LIGNE du local : recalculée AVANT
 	# la limite (bw) pour que les clients remplissent jusqu'au total boosté.
 	GameManager.proxy_boost = _proxy_boost()
