@@ -1,7 +1,7 @@
 class_name SaveSlotsScreen
 extends CanvasLayer
 ## Écran de gestion des sauvegardes : liste des emplacements avec leurs infos
-## (argent, serveurs, date), boutons Charger / Supprimer, et Retour.
+## (argent, date), boutons Charger / Supprimer, et Retour.
 ## CanvasLayer + CenterContainer : toujours centré, quelle que soit la résolution.
 
 signal load_requested(slot: int)
@@ -46,16 +46,8 @@ func refresh() -> void:
 			delete_btn.disabled = true
 		else:
 			var money := int(meta.get("money", 0))
-			var server_count := 0
-			var servers: Variant = meta.get("servers", [])
-			if typeof(servers) == TYPE_ARRAY:
-				server_count = (servers as Array).size()
-			else:
-				# Compatibilité : anciennes sauvegardes « bâtiments »
-				var buildings: Variant = meta.get("buildings", [])
-				server_count = buildings.size() if typeof(buildings) == TYPE_ARRAY else 0
 			var date := Time.get_datetime_string_from_unix_time(int(meta.get("saved_at", 0)), false)
-			label.text = "Emplacement %d — %d $ — %d serveurs — %s" % [slot + 1, money, server_count, date]
+			label.text = "Emplacement %d — %d $ — %s" % [slot + 1, money, date]
 			load_btn.disabled = false
 			delete_btn.disabled = false
 
