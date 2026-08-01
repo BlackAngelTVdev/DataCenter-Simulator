@@ -182,6 +182,50 @@ const LOCALS := [
 
 
 # ------------------------------------------------------------------
+#  PARTENARIATS — signe un deal avec un constructeur : ses machines te
+#  coûtent MOINS CHER à l'achat (buy_discount), mais les clients hébergés
+#  dessus paient MOINS (income_penalty → revenus par client réduits).
+#  Un vrai trade-off : parfait pour scaler vite, moins rentable à terme.
+#  target = id du serveur concerné.
+# ------------------------------------------------------------------
+const PARTNERSHIPS := [
+	{
+		"id": "partner_panda",
+		"kind": "partnership",
+		"name": "Partenaire Panda Corp",
+		"desc": "Panda Corp sponsorise ton garage : le Serveur Panda coûte -25% à l'achat, mais ses clients paient -20%.",
+		"price": 60,
+		"target": "server_panda",
+		"buy_discount": 0.25,
+		"income_penalty": 0.20,
+		"color": Color(0.38, 0.55, 0.85),
+	},
+	{
+		"id": "partner_lynx",
+		"kind": "partnership",
+		"name": "Partenaire Lynx Systems",
+		"desc": "Deal constructeur Lynx : le Serveur Lynx coûte -30% à l'achat, mais ses clients paient -25%.",
+		"price": 150,
+		"target": "server_lynx",
+		"buy_discount": 0.30,
+		"income_penalty": 0.25,
+		"color": Color(0.45, 0.75, 0.55),
+	},
+	{
+		"id": "partner_mammoth",
+		"kind": "partnership",
+		"name": "Partenaire Mammouth Data",
+		"desc": "Contrat pro Mammouth : le Serveur Mammouth coûte -35% à l'achat, mais ses clients paient -30%.",
+		"price": 350,
+		"target": "server_mammoth",
+		"buy_discount": 0.35,
+		"income_penalty": 0.30,
+		"color": Color(0.8, 0.55, 0.3),
+	},
+]
+
+
+# ------------------------------------------------------------------
 #  AMÉLIORATIONS — s'appliquent immédiatement à l'achat.
 #  Exemple : le pare-feu booste tous les revenus.
 # ------------------------------------------------------------------
@@ -257,6 +301,7 @@ static func shop_items() -> Array:
 	items.append_array(LOCALS)
 	items.append_array(UPGRADES)
 	items.append_array(ABOS)
+	items.append_array(PARTNERSHIPS)
 	return items
 
 
@@ -265,6 +310,43 @@ static func get_item(id: String) -> Dictionary:
 		if item["id"] == id:
 			return item.duplicate(true)
 	return {}
+
+
+static func partnership_for(server_id: String) -> Dictionary:
+	## Le partenariat lié à un serveur (vide si aucun).
+	for p in PARTNERSHIPS:
+		if p["target"] == server_id:
+			return p
+	return {}
+
+
+static func is_partner(server_id: String) -> bool:
+	## Un partenariat est-il signé pour ce serveur ? On vérifie la clé owned
+	## via le VRAI id du partenariat (ex: "partner_panda") — pas "partner_" +
+	## server_id qui ne correspondrait à aucun id du catalogue.
+	var p := partnership_for(server_id)
+	return not p.is_empty() and GameManager.owns(str(p.get("id", "")))
+
+
+static func buy_price(item: Dictionary) -> int:
+	## Prix d'achat EFFECTIF : moins cher si un partenariat est signé.
+	var price := int(item.get("price", 0))
+	if str(item.get("kind", "")) == "server":
+		var p := partnership_for(str(item.get("id", "")))
+		if not p.is_empty() and is_partner(str(item.get("id", ""))):
+			price = int(round(float(price) * (1.0 - float(p.get("buy_discount", 0.0)))))
+	return price
+
+
+static func income_multiplier(item: Dictionary) -> float:
+	## Multiplicateur de revenus PAR CLIENT selon le partenariat (1.0 = neutre,
+	## < 1.0 = les clients paient moins sur cette machine).
+	var mult := 1.0
+	if str(item.get("kind", "")) == "server":
+		var p := partnership_for(str(item.get("id", "")))
+		if not p.is_empty() and is_partner(str(item.get("id", ""))):
+			mult -= float(p.get("income_penalty", 0.0))
+	return mult
 
 
 static func get_abo(id: String) -> Dictionary:
@@ -290,8 +372,9 @@ const RESALE_RATIO := 0.6
 
 static func resale_value(item: Dictionary) -> int:
 	## Valeur de revente d'un objet stocké (arrondie à l'unité). Un serveur
-	## avec OS installé vaut un peu plus (l'OS reste dessus).
-	var base := float(item.get("price", 0))
+	## avec OS installé vaut un peu plus (l'OS reste dessus). Le prix de base
+	## est le prix d'ACHAT EFFECTIF (partenariat déduit si signé).
+	var base := float(buy_price(item))
 	var ratio := RESALE_RATIO
 	if str(item.get("kind", "")) == "server" and item.has("os"):
 		ratio += 0.1  # +10% si prêt à brancher (OS déjà installé)

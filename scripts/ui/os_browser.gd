@@ -1,10 +1,12 @@
 class_name OSBrowser
 extends PanelContainer
 ## Fenêtre « Renard » : le navigateur web du faux OS.
-##  • https://tech-occase.bian/  → boutique Tech'Occase (achat de matériel)
-##  • https://monitor.bian/      → MONITOR : supervision en direct de la
+##  • https://tech-occase.bian/   → boutique Tech'Occase (achat de matériel)
+##  • https://monitor.bian/       → MONITOR : supervision en direct de la
 ##    connexion (saturée ou non, clients / bande passante) et des serveurs
 ##    (charge, saturation, revenus). Rafraîchi chaque seconde.
+##  • https://partenaires.bian/   → BUREAU DES PARTENARIATS : signer des deals
+##    constructeurs (achat moins cher ↔ revenus clients réduits), page dédiée.
 ## Les données viennent de la scène garage courante (placed_servers) et de
 ## GameManager (stats recalculées au tick).
 
@@ -12,6 +14,7 @@ signal closed
 
 const SITE_URL := "https://tech-occase.bian/"
 const MONITOR_URL := "https://monitor.bian/"
+const PARTNERSHIP_URL := "https://partenaires.bian/"
 
 var page_box: VBoxContainer
 var cash_label: Label
@@ -24,7 +27,7 @@ var buy_entries: Array = []
 # --- Navigation ---
 var history: Array = [SITE_URL]
 var history_idx := 0
-var current_page := "shop"  # "shop" | "monitor"
+var current_page := "shop"  # "shop" | "monitor" | "partnership"
 
 # --- Références monitor (rafraîchies sans tout reconstruire) ---
 var mon_conn_bar: ProgressBar
@@ -194,6 +197,12 @@ func _render_page() -> void:
 	if url.contains("monitor"):
 		current_page = "monitor"
 		_render_monitor()
+	elif url.contains("partenaire"):
+		# ATTENTION : « partenaire » et PAS « partner » — l'URL est
+		# https://partenaires.bian/ (« partner » n'est pas une sous-chaîne
+		# de « partenaires » → l'onglet retombait sur le shop).
+		current_page = "partnership"
+		_render_partnerships()
 	else:
 		current_page = "shop"
 		_render_shop()
@@ -220,6 +229,8 @@ func _render_shop() -> void:
 	var upgrades: Array = []
 	var abos: Array = []
 	for item in ShopCatalog.shop_items():
+		# Les PARTENARIATS ont leur propre onglet (https://partenaires.bian/) :
+		# ils ne s'affichent pas dans la boutique matériel.
 		match item.get("kind", ""):
 			"server": servers.append(item)
 			"furniture": furniture.append(item)
@@ -343,6 +354,7 @@ func _build_site_links() -> Control:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	for link in [
 		["🛒 Tech'Occase", SITE_URL],
+		["🤝 Partenaires", PARTNERSHIP_URL],
 		["📊 Monitor", MONITOR_URL],
 	]:
 		var b := _btn(link[0], 180.0)
@@ -357,6 +369,70 @@ func _section_title(text: String) -> Label:
 	l.add_theme_font_size_override("font_size", 18)
 	l.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
 	return l
+
+
+# ------------------------------------------------------------------ Partenariats (onglet dédié)
+func _render_partnerships() -> void:
+	## Page « Bureau des Partenariats » : les deals constructeurs vivent ICI,
+	## pas dans la boutique matériel (qui reste l'onglet Tech'Occase).
+	for child in page_box.get_children():
+		child.queue_free()
+	# Même pattern que le shop : on repart d'une liste PROPRE avant les _card().
+	buy_entries.clear()
+	page_box.add_child(_build_partner_banner())
+	page_box.add_child(_build_site_links())
+
+	page_box.add_child(_section_title("🤝 Deals constructeurs"))
+	var hint := Label.new()
+	hint.text = "💡 Signe un deal avec un constructeur : tu achètes sa machine MOINS CHER, mais les clients hébergés dessus paient MOINS (revenus réduits). Un vrai trade-off stratégique — à toi de choisir."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.add_theme_font_size_override("font_size", 12)
+	hint.add_theme_color_override("font_color", Color(1.0, 0.9, 0.55))
+	page_box.add_child(hint)
+
+	var any := false
+	for item in ShopCatalog.PARTNERSHIPS:
+		page_box.add_child(_card(item))
+		any = true
+	if not any:
+		var empty := Label.new()
+		empty.text = "Aucun partenariat disponible pour le moment."
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.add_theme_font_size_override("font_size", 13)
+		empty.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
+		page_box.add_child(empty)
+
+	_refresh_cash()
+
+
+func _build_partner_banner() -> Control:
+	var banner := PanelContainer.new()
+	banner.add_theme_stylebox_override("panel", UITheme.tinted(Color(0.42, 0.3, 0.08), 14.0, 10.0))
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	banner.add_child(vb)
+
+	var site_name := Label.new()
+	site_name.text = "🤝 Bureau des Partenariats"
+	site_name.add_theme_font_size_override("font_size", 26)
+	site_name.add_theme_color_override("font_color", Color(1.0, 0.85, 0.5))
+	vb.add_child(site_name)
+	var slogan := Label.new()
+	slogan.text = "Des deals gagnant-gagnant… enfin, presque. Moins cher à l'achat, moins de marge par client."
+	slogan.add_theme_font_size_override("font_size", 14)
+	vb.add_child(slogan)
+
+	cash_label = Label.new()
+	cash_label.add_theme_font_size_override("font_size", 16)
+	cash_label.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
+	vb.add_child(cash_label)
+
+	flash_label = Label.new()
+	flash_label.add_theme_font_size_override("font_size", 14)
+	flash_label.add_theme_color_override("font_color", Color(0.6, 1.0, 0.7))
+	flash_label.visible = false
+	vb.add_child(flash_label)
+	return banner
 
 
 # ------------------------------------------------------------------ Monitoring
@@ -642,9 +718,9 @@ func _card(item: Dictionary) -> Control:
 	specs.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
 	info.add_child(specs)
 
-	# Prix + bouton
+	# Prix + bouton (prix EFFECTIF : partenariat déduit si signé)
 	var buy := Button.new()
-	buy.text = "%d $" % int(item.get("price", 0))
+	buy.text = "%d $" % ShopCatalog.buy_price(item)
 	buy.custom_minimum_size = Vector2(130, 44)
 	buy.add_theme_stylebox_override("normal", UITheme.button_normal(Color(0.15, 0.45, 0.25)))
 	buy.add_theme_stylebox_override("hover", UITheme.button_hover(Color(0.2, 0.6, 0.32)))
@@ -691,6 +767,11 @@ func _specs(item: Dictionary) -> String:
 			]
 		"abo":
 			return "Jusqu'à %d clients en ligne simultanément" % int(item.get("clients", 0))
+		"partnership":
+			return "Achat -%d%% · revenus clients -%d%%" % [
+				int(item.get("buy_discount", 0.0) * 100),
+				int(item.get("income_penalty", 0.0) * 100),
+			]
 	return ""
 
 
@@ -709,9 +790,9 @@ func _refresh_cash() -> void:
 		if not is_instance_valid(btn):
 			continue
 		btn.disabled = false
-		btn.text = "%d $" % int(item.get("price", 0))
-		# États spéciaux : les achats uniques (abo / pare-feu / locaux) ne se
-	# rachètent pas — désactivés avec un libellé clair (ACTIF / POSSÉDÉ).
+		btn.text = "%d $" % ShopCatalog.buy_price(item)
+		# États spéciaux : les achats uniques (abo / pare-feu / locaux /
+		# partenariats) ne se rachètent pas — libellé clair (ACTIF / POSSÉDÉ / SIGNÉ).
 		match item.get("kind", ""):
 			"abo":
 				if item["id"] == GameManager.abo_id:
@@ -724,6 +805,10 @@ func _refresh_cash() -> void:
 				if GameManager.owns(str(item["id"])):
 					btn.disabled = true
 					btn.text = "POSSÉDÉ"
+			"partnership":
+				if GameManager.owns(str(item["id"])):
+					btn.disabled = true
+					btn.text = "SIGNÉ ✓"
 
 
 func _on_flash_timeout() -> void:
@@ -825,10 +910,10 @@ func _sell_stock(idx: int) -> void:
 
 
 func _buy(item: Dictionary) -> void:
-	var price := int(item.get("price", 0))
+	var price := ShopCatalog.buy_price(item)
 	var kind := str(item.get("kind", ""))
-	# Achats uniques : on ne rachète pas un abo / pare-feu / local déjà pris.
-	if kind in ["abo", "upgrade", "local"] and GameManager.owns(str(item["id"])):
+	# Achats uniques : on ne rachète pas un abo / pare-feu / local / partenaire.
+	if kind in ["abo", "upgrade", "local", "partnership"] and GameManager.owns(str(item["id"])):
 		_flash("⚠ Déjà possédé !")
 		return
 	# Abonnement : pas de downgrade (on ne reprend pas un abo moins bon).
@@ -861,6 +946,13 @@ func _buy(item: Dictionary) -> void:
 			GameManager.mark_owned(str(item["id"]))
 			GameManager.abo_id = item["id"]
 			_flash("✓ Abonnement %s activé !" % item.get("name", ""))
+		"partnership":
+			GameManager.mark_owned(str(item["id"]))
+			_flash("✓ Partenariat %s signé : tu achètes la machine -%d%%, mais ses clients paient -%d%%." % [
+				item.get("name", ""),
+				int(item.get("buy_discount", 0.0) * 100),
+				int(item.get("income_penalty", 0.0) * 100),
+			])
 	if item.get("kind", "") == "local":
 		_render_page()
 		if int(item.get("unlock_location", 0)) != 0:

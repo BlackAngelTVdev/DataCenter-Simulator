@@ -71,6 +71,8 @@ func max_clients() -> int:
 
 func income_per_sec() -> float:
 	var mult := float(os_data().get("income_mult", 1.0))
+	# Partenariat constructeur : les clients paient MOINS sur cette machine.
+	mult *= ShopCatalog.income_multiplier(item)
 	return float(item.get("income", 0.0)) * clients * mult
 
 
