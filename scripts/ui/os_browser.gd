@@ -288,7 +288,7 @@ func _render_shop() -> void:
 	# --- Vendre son stock (étagère du local courant) ---
 	page_box.add_child(_section_title("Vendre ton stock"))
 	var sell_hint := Label.new()
-	sell_hint.text = "Dépose du matériel sur l'étagère pour le revendre ici : reprise à %d%% du prix d'achat (+10%% si un OS est déjà installé sur un serveur)." % int(ShopCatalog.RESALE_RATIO * 100)
+	sell_hint.text = "Dépose du matériel sur l'étagère et revends quand le marché est HAUT : reprise à %d%% du prix DU JOUR (+10%% si un OS est déjà installé sur un serveur)." % int(ShopCatalog.RESALE_RATIO * 100)
 	sell_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	sell_hint.add_theme_font_size_override("font_size", 12)
 	sell_hint.add_theme_color_override("font_color", Color(1.0, 0.85, 0.5))
@@ -333,6 +333,17 @@ func _build_banner() -> Control:
 	slogan.text = "Matériel informatique reconditionné — « Des prix de garage ! »"
 	slogan.add_theme_font_size_override("font_size", 14)
 	vb.add_child(slogan)
+
+	# Marché du jour : les prix fluctuent (achète bas, revends haut).
+	var market := Label.new()
+	market.text = "Marché du jour — Panda %d $ · Lynx %d $ · Mammouth %d $ : les prix fluctuent, achète bas, revends haut." % [
+		ShopCatalog.market_price(ShopCatalog.get_item("server_panda")),
+		ShopCatalog.market_price(ShopCatalog.get_item("server_lynx")),
+		ShopCatalog.market_price(ShopCatalog.get_item("server_mammoth")),
+	]
+	market.add_theme_font_size_override("font_size", 13)
+	market.add_theme_color_override("font_color", Color(1.0, 0.9, 0.6))
+	vb.add_child(market)
 
 	cash_label = Label.new()
 	cash_label.add_theme_font_size_override("font_size", 16)

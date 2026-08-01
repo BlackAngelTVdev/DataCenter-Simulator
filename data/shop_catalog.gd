@@ -328,9 +328,42 @@ static func is_partner(server_id: String) -> bool:
 	return not p.is_empty() and GameManager.owns(str(p.get("id", "")))
 
 
+# ------------------------------------------------------------------
+#  MARCHÉ FLUCTUANT — les prix de Tech'Occase varient avec le temps.
+#  MARKET_DAY_SECONDS = durée (en secondes réelles) d'un « jour de marché ».
+#  market_multiplier(id) est DÉTERMINISTE (même serveur + même jour => même
+#  prix) : on peut donc acheter bas, stocker sur l'étagère et revendre quand
+#  le marché remonte. C'est le mini-jeu de trading.
+# ------------------------------------------------------------------
+const MARKET_DAY_SECONDS := 300.0
+const MARKET_MIN := 0.7
+const MARKET_MAX := 1.5
+
+
+static func market_day() -> int:
+	return int(Time.get_unix_time_from_system() / MARKET_DAY_SECONDS)
+
+
+static func market_multiplier(id: String) -> float:
+	## Multiplicateur de prix du jour pour un item (entre MARKET_MIN et MAX).
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("mkt_" + id + "_" + str(market_day()))
+	return MARKET_MIN + (MARKET_MAX - MARKET_MIN) * rng.randf()
+
+
+static func market_price(item: Dictionary) -> int:
+	## Prix catalogue du jour (arrondi). Les items GRATUITS (ex: l'abo de base
+	## inclus, prix 0) restent à 0 $ ; les autres ne descendent jamais sous 1 $.
+	var base := int(item.get("price", 0))
+	if base <= 0:
+		return 0
+	return maxi(1, int(round(float(base) * market_multiplier(str(item.get("id", ""))))))
+
+
 static func buy_price(item: Dictionary) -> int:
-	## Prix d'achat EFFECTIF : moins cher si un partenariat est signé.
-	var price := int(item.get("price", 0))
+	## Prix d'achat EFFECTIF : prix du MARCHÉ du jour, moins cher encore si un
+	## partenariat est signé.
+	var price := market_price(item)
 	if str(item.get("kind", "")) == "server":
 		var p := partnership_for(str(item.get("id", "")))
 		if not p.is_empty() and is_partner(str(item.get("id", ""))):
@@ -371,10 +404,11 @@ const RESALE_RATIO := 0.6
 
 
 static func resale_value(item: Dictionary) -> int:
-	## Valeur de revente d'un objet stocké (arrondie à l'unité). Un serveur
-	## avec OS installé vaut un peu plus (l'OS reste dessus). Le prix de base
-	## est le prix d'ACHAT EFFECTIF (partenariat déduit si signé).
-	var base := float(buy_price(item))
+	## Valeur de revente d'un objet stocké, arrondie à l'unité. La reprise suit
+	## le MARCHÉ DU JOUR (Tech'Occase rachète au prix actuel) : si le marché
+	## monte, on revend plus cher — c'est le cœur du trading. Un serveur avec
+	## OS installé vaut un peu plus (l'OS reste dessus).
+	var base := float(market_price(item))
 	var ratio := RESALE_RATIO
 	if str(item.get("kind", "")) == "server" and item.has("os"):
 		ratio += 0.1  # +10% si prêt à brancher (OS déjà installé)
