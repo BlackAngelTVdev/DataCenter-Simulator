@@ -387,6 +387,8 @@ static func shop_items() -> Array:
 	items.append_array(PARTNERSHIPS)
 	items.append_array(GOODIES)
 	items.append_array(DECOR)
+	# Reverse proxies (data/proxy_list.gd) : licences logicielles achetables.
+	items.append_array(ProxyList.PROXIES)
 	return items
 
 
@@ -497,8 +499,8 @@ static func resale_value(item: Dictionary) -> int:
 	var base := float(market_price(item))
 	var ratio := RESALE_RATIO
 	if str(item.get("kind", "")) == "server":
-		if item.has("os"):
-			ratio += 0.1  # +10% si prêt à brancher (OS déjà installé)
+		if item.has("os") or item.has("proxy"):
+			ratio += 0.1  # +10% si prêt à brancher (OS ou proxy déjà installé)
 		if item.get("broken", false):
 			ratio *= 0.5  # en panne : moitié prix
 		elif float(item.get("wear", 0.0)) > 0.5:
