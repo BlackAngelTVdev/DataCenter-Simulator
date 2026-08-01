@@ -13,9 +13,23 @@ var clock_label: Label
 var toast_label: Label
 var toast_timer: Timer
 var clock_timer: Timer
+var top_bar: Control
 
 ## Thème « Pro » (PC du Local 2 — Data Hall) : fond plus froid, badge serveur.
 var premium := false
+
+## Fenêtres déjà ouvertes UNE fois : elles sont centrées à la première
+## ouverture, puis GARDENT la position où le joueur les a déplacées.
+var _opened_once := {}
+
+## Instances WindowDrag attachées aux fenêtres : on les GARDE en référence
+## (RefCounted) — une connexion de signal ne suffit pas à garantir leur
+## durée de vie en Godot, sans ça le drag pouvait crasher « previously freed ».
+var _window_drags: Array = []
+
+## Zone au-dessus de laquelle les fenêtres ne remontent pas (la barre du
+## haut et les toasts restent toujours visibles, comme un vrai bureau).
+const UI_TOP_Z := 10
 
 
 func _ready() -> void:
@@ -78,6 +92,8 @@ func _build_top_bar() -> void:
 	bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	bar.offset_bottom = 34.0
 	bar.add_theme_stylebox_override("panel", UITheme.bar())
+	bar.z_index = UI_TOP_Z
+	top_bar = bar
 	root.add_child(bar)
 
 	var hb := HBoxContainer.new()
@@ -237,6 +253,7 @@ func _build_windows() -> void:
 	browser.visible = false
 	browser.closed.connect(func() -> void: browser.visible = false)
 	root.add_child(browser)
+	_window_drags.append(WindowDrag.attach(browser, browser.drag_handle, _bring_to_front.bind(browser)))
 
 	terminal = OSTerminal.new()
 	terminal.name = "TerminalWindow"
@@ -244,6 +261,7 @@ func _build_windows() -> void:
 	terminal.visible = false
 	terminal.closed.connect(func() -> void: terminal.visible = false)
 	root.add_child(terminal)
+	_window_drags.append(WindowDrag.attach(terminal, terminal.drag_handle, _bring_to_front.bind(terminal)))
 
 	mail = MailUI.new()
 	mail.name = "MailWindow"
@@ -251,6 +269,7 @@ func _build_windows() -> void:
 	mail.visible = false
 	mail.closed.connect(func() -> void: mail.visible = false)
 	root.add_child(mail)
+	_window_drags.append(WindowDrag.attach(mail, mail.drag_handle, _bring_to_front.bind(mail)))
 
 	achievements = AchievementsUI.new()
 	achievements.name = "AchievementsWindow"
@@ -258,6 +277,7 @@ func _build_windows() -> void:
 	achievements.visible = false
 	achievements.closed.connect(func() -> void: achievements.visible = false)
 	root.add_child(achievements)
+	_window_drags.append(WindowDrag.attach(achievements, achievements.drag_handle, _bring_to_front.bind(achievements)))
 
 
 func _build_shutdown() -> void:
@@ -277,6 +297,7 @@ func _build_shutdown() -> void:
 	btn.add_theme_stylebox_override("pressed", UITheme.button_pressed(Color(1, 1, 1, 0.18)))
 	btn.add_theme_stylebox_override("focus", UITheme.button_focus())
 	btn.pressed.connect(close)
+	btn.z_index = UI_TOP_Z
 	root.add_child(btn)
 
 
@@ -291,6 +312,7 @@ func _build_toasts() -> void:
 	toast_label.add_theme_constant_override("shadow_offset_x", 2)
 	toast_label.add_theme_constant_override("shadow_offset_y", 2)
 	toast_label.visible = false
+	toast_label.z_index = UI_TOP_Z
 	root.add_child(toast_label)
 
 	toast_timer = Timer.new()
@@ -316,29 +338,38 @@ func _open_browser() -> void:
 	# _render_page() queue_free les anciens enfants (libérés en fin de frame),
 	# sinon la taille lue additionnerait ancien + nouveau contenu.
 	browser._render_page()
-	_center_window.call_deferred(browser)
-	browser.visible = true
+	_open_window(browser, true)
 
 
 func _open_terminal() -> void:
-	_center_window(terminal)
-	terminal.visible = true
+	_open_window(terminal)
 	terminal.input.grab_focus.call_deferred()
 
 
 func _open_mail() -> void:
 	# Re-rafraîchit la liste (les e-mails arrivent selon l'activité des
-	# clients) puis centre la fenêtre.
+	# clients).
 	mail.refresh()
-	_center_window(mail)
-	mail.visible = true
+	_open_window(mail)
 
 
 func _open_achievements() -> void:
 	# Rafraîchit l'état (les succès tombent pendant qu'on joue).
 	achievements.refresh()
-	_center_window(achievements)
-	achievements.visible = true
+	_open_window(achievements)
+
+
+func _open_window(win: Control, defer_center := false) -> void:
+	## Ouvre la fenêtre : centrée à la PREMIÈRE ouverture, puis elle GARDE la
+	## position où le joueur l'a déplacée (drag par la barre de titre).
+	if not _opened_once.has(win):
+		_opened_once[win] = true
+		if defer_center:
+			_center_window.call_deferred(win)
+		else:
+			_center_window(win)
+	_bring_to_front(win)
+	win.visible = true
 
 
 func _center_window(win: Control) -> void:
@@ -346,3 +377,12 @@ func _center_window(win: Control) -> void:
 	var size := win.get_combined_minimum_size()
 	win.size = size
 	win.position = ((root.size - size) / 2.0).floor()
+
+
+func _bring_to_front(win: Control) -> void:
+	## Passe la fenêtre AU PREMIER PLAN : elle devient le dernier enfant de la
+	## scène racine (dessinée au-dessus des autres fenêtres). La barre du haut,
+	## les toasts et « Éteindre » gardent un z_index plus haut (UI_TOP_Z) et
+	## restent donc toujours visibles par-dessus, comme un vrai bureau.
+	if is_instance_valid(win) and win.get_parent() == root:
+		root.move_child(win, root.get_child_count() - 1)
