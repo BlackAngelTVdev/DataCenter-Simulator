@@ -278,9 +278,16 @@ func _on_toast_timeout() -> void:
 
 
 func _open_browser() -> void:
-	_center_window(browser)
+	# Re-rend la page à CHAQUE ouverture : la section « Vendre ton stock »
+	# (et les prix partenariats) doit refléter l'état ACTUEL de l'étagère —
+	# sans ça elle restait figée sur l'état du _ready() initial.
+	# On rend AVANT de centrer : _center_window lit get_combined_minimum_size()
+	# du contenu fraîchement reconstruit. Le centrage est différé d'un frame :
+	# _render_page() queue_free les anciens enfants (libérés en fin de frame),
+	# sinon la taille lue additionnerait ancien + nouveau contenu.
+	browser._render_page()
+	_center_window.call_deferred(browser)
 	browser.visible = true
-	browser._refresh_cash()
 
 
 func _open_terminal() -> void:

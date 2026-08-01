@@ -902,6 +902,10 @@ func _sell_stock(idx: int) -> void:
 		return
 	var it := shelf.take(idx)
 	if it.is_empty():
+		# Case déjà vide (vente précédente, ou prise à l'étagère) : on
+		# resynchronise l'affichage et on prévient au lieu de rien faire.
+		_render_shop()
+		_flash("⚠ Cet objet n'est plus sur l'étagère.")
 		return
 	var value := ShopCatalog.resale_value(it)
 	GameManager.cash += value
