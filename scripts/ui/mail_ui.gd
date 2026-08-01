@@ -92,19 +92,30 @@ func refresh() -> void:
 	for child in _list_box.get_children():
 		child.queue_free()
 	# Badge « nouveaux » : les e-mails reçus mais pas encore lus (clients ET
-	# e-mails aléatoires). available() exclut déjà les vus ; pour les e-mails
-	# aléatoires, on ne compte que ceux dont l'id n'est pas dans mails_seen.
+	# e-mails aléatoires) — on compte les non-vus du pool (all_unlocked) et
+	# les e-mails aléatoires reçus pas encore lus. Les e-mails SUPPRIMÉS sont
+	# exclus (disparus de la boîte pour de bon).
 	if is_instance_valid(_title):
-		var unseen := MailPool.available().size()
+		var unseen := 0
+		for m in MailPool.all_unlocked():
+			if GameManager.deleted_mails.has(str(m.get("id", ""))):
+				continue
+			if not GameManager.mails_seen.has(str(m.get("id", ""))):
+				unseen += 1
 		for m in GameManager.received_mails:
 			if not GameManager.mails_seen.has(str(m["id"])):
 				unseen += 1
 		_title.text = "Mail — boîte de réception" if unseen == 0 else "Mail — boîte de réception (%d nouveau%s)" % [unseen, "x" if unseen > 1 else ""]
 	# Les e-mails de clients (pool statique) + les e-mails aléatoires reçus
-	# (pub / offres, stockés dans GameManager.received_mails).
-	var mails := MailPool.all_unlocked()
+	# (pub / offres, stockés dans GameManager.received_mails). Les e-mails
+	# SUPPRIMÉS (GameManager.deleted_mails) ne réapparaissent pas.
+	var mails := []
+	for m in MailPool.all_unlocked():
+		if not GameManager.deleted_mails.has(str(m.get("id", ""))):
+			mails.append(m)
 	for m in GameManager.received_mails:
-		mails.append(m)
+		if not GameManager.deleted_mails.has(str(m.get("id", ""))):
+			mails.append(m)
 	if mails.is_empty():
 		var empty := Label.new()
 		empty.text = "Boîte de réception vide. Les clients t'écriront ici."
@@ -154,6 +165,10 @@ func _open_mail(mail: Dictionary) -> void:
 		hint.add_theme_font_size_override("font_size", 13)
 		hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.4))
 		_accept_box.add_child(hint)
+	# Bouton « Supprimer » : l'e-mail disparaît de la boîte définitivement.
+	var del_btn := UIHelpers.make_button("Supprimer l'e-mail", false, Vector2(180, 40))
+	del_btn.pressed.connect(_delete_current_mail)
+	_accept_box.add_child(del_btn)
 
 
 func _accept_contract(cid: String, contract: Dictionary) -> void:
@@ -166,6 +181,20 @@ func _show_empty_detail() -> void:
 	_detail.text = "Clique sur un e-mail pour le lire."
 	for child in _accept_box.get_children():
 		child.queue_free()
+
+
+func _delete_current_mail() -> void:
+	## Supprime l'e-mail actuellement ouvert : il ne réapparaîtra plus
+	## (id ajouté à GameManager.deleted_mails, persité dans la sauvegarde).
+	if _current_mail.is_empty():
+		return
+	var mid := str(_current_mail.get("id", ""))
+	if mid.is_empty():
+		return
+	GameManager.deleted_mails[mid] = true
+	_current_mail = {}
+	refresh()
+	toast("E-mail supprimé.")
 
 
 var _flash_label: Label
