@@ -181,14 +181,31 @@ func _show_empty_detail() -> void:
 
 
 func _delete_current_mail() -> void:
-	## Supprime l'e-mail actuellement ouvert : il ne réapparaîtra plus
-	## (id ajouté à GameManager.deleted_mails, persité dans la sauvegarde).
+	## Supprime l'e-mail actuellement ouvert : il disparaît VRAIMENT de la boîte.
+	## Les e-mails ALÉATOIRES (pub/offres, stockés dans received_mails) sont
+	## RETIRÉS du tableau : la sauvegarde ne grossit pas avec les supprimés.
+	## Les e-mails de CLIENTS (pool statique MailPool) sont marqués dans
+	## deleted_mails (set borné ~5 ids) pour ne pas réapparaître au refresh.
 	if _current_mail.is_empty():
 		return
 	var mid := str(_current_mail.get("id", ""))
 	if mid.is_empty():
 		return
-	GameManager.deleted_mails[mid] = true
+	# E-mail aléatoire : retiré du tableau, plus besoin de le conserver ni de
+	# le tracer dans deleted_mails (il n'existe plus du tout).
+	var removed := false
+	for i in range(GameManager.received_mails.size()):
+		if str(GameManager.received_mails[i].get("id", "")) == mid:
+			GameManager.received_mails.remove_at(i)
+			removed = true
+			break
+	if not removed:
+		# E-mail de client (pool statique re-dérivé à chaque refresh) : marqué
+		# supprimé pour ne plus réapparaître.
+		GameManager.deleted_mails[mid] = true
+	# Le « lu » d'un e-mail supprimé n'a plus lieu d'être : mails_seen ne
+	# grossit pas non plus avec des ids de messages disparus.
+	GameManager.mails_seen.erase(mid)
 	_current_mail = {}
 	refresh()
 	toast("E-mail supprimé.")

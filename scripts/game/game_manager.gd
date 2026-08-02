@@ -116,13 +116,17 @@ var mails_seen := {}
 
 ## E-mails ALÉATOIRES (pub / offres / newsletters) reçus dans l'app Mail :
 ## chaque instance porte un id unique (rand_<ts>_<n>) et reste dans la boîte
-## (persisté dans la sauvegarde). Les e-mails de clients, eux, restent dans
-## le pool statique MailPool.MAILS et sont dédupliqués via mails_seen.
+## (persisté dans la sauvegarde). Un e-mail SUPPRIMÉ est RETIRÉ de ce
+## tableau (mail_ui.gd) : la sauvegarde ne garde que les e-mails encore
+## dans la boîte. Les e-mails de clients, eux, restent dans le pool
+## statique MailPool.MAILS et sont dédupliqués via mails_seen.
 var received_mails: Array = []
 
-## E-mails SUPPRIMÉS dans l'app Mail (id -> true) : ils ne réapparaissent
-## plus (ni les e-mails de clients du pool statique, ni les e-mails
-## aléatoires reçus). Persisté dans la sauvegarde.
+## E-mails de CLIENTS SUPPRIMÉS dans l'app Mail (id -> true) : ils ne
+## réapparaissent plus (le pool statique MailPool.MAILS est re-dérivé à
+## chaque refresh). Set BORNÉ (~5 ids) : les e-mails aléatoires supprimés
+## n'y entrent jamais (ils sont retirés de received_mails). Persisté dans
+## la sauvegarde.
 var deleted_mails := {}
 
 ## Centre de NOTIFICATIONS (cloche du HUD, en haut à gauche) : liste de
