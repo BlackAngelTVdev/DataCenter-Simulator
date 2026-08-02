@@ -13,6 +13,12 @@ var notif_scroll: ScrollContainer
 var notif_list: VBoxContainer
 var panel_open := false
 
+# Toast transitoire (feedback immédiat au-dessus de l'invite E)
+var toast_panel: PanelContainer
+var toast_label: Label
+var toast_timer: Timer
+var toast_tween: Tween
+
 
 func _ready() -> void:
 	_build()
@@ -104,6 +110,27 @@ func _build() -> void:
 	notif_list.add_theme_constant_override("separation", 6)
 	notif_scroll.add_child(notif_list)
 
+# Toast transitoire (feedback immédiat, au-dessus de l'invite E)
+	toast_panel = PanelContainer.new()
+	toast_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	toast_panel.offset_bottom = -100.0
+	toast_panel.offset_top = -138.0
+	toast_panel.offset_left = -320.0
+	toast_panel.offset_right = 320.0
+	toast_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toast_panel.add_theme_stylebox_override("panel", UITheme.panel(10))
+	toast_panel.visible = false
+	toast_label = _label(16, Color(1.0, 1.0, 0.9, 1.0))
+	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	toast_panel.add_child(toast_label)
+	add_child(toast_panel)
+
+	toast_timer = Timer.new()
+	toast_timer.one_shot = true
+	toast_timer.timeout.connect(_on_toast_timeout)
+	add_child(toast_timer)
+
 
 func _toggle_panel() -> void:
 	panel_open = not panel_open
@@ -176,12 +203,36 @@ func hide_prompt() -> void:
 
 
 func toast(text: String, notify: bool = true) -> void:
-	## Message dans la cloche de notifications. `notify` = false : message
-	## SILENCIEUX (info banale, chat, radio, poses…) qui ne remplit pas le
-	## centre de notifications — on ne garde dans la cloche que l'ESSENTIEL
-	## (incidents, pannes, alertes réseau, succès).
+	## Message dans la cloche de notifications. `notify` = true : message
+	## IMPORTANT (incidents, pannes, alertes réseau, succès, réparations) —
+	## il s'affiche en toast transitoire (~3 s) ET reste dans la cloche.
+	## `notify` = false : message silencieux (chat, radio, poses…) que le
+	## joueur a demandé de ne plus voir — ni toast, ni cloche.
 	if notify:
+		_show_transient_toast(text)
 		GameManager.add_notification(text)
 		_refresh_badge()
 		if panel_open:
 			_refresh_list()
+
+
+func _show_transient_toast(text: String) -> void:
+	## Petit panneau qui apparaît au-dessus de l'invite d'interaction, puis
+	## disparaît tout seul après ~3 s — le retour visuel des actions
+	## importantes (une réparation ne semble jamais « sans effet »).
+	# Reset complet avant d'afficher : si le fondu précédent a laissé le
+	# panneau invisible (modulate.a = 0) ou qu'un tween traîne encore.
+	if is_instance_valid(toast_tween):
+		toast_tween.kill()
+	toast_panel.modulate.a = 1.0
+	toast_label.text = text
+	toast_panel.visible = true
+	toast_timer.start(3.0)
+
+
+func _on_toast_timeout() -> void:
+	# Petit fondu de sortie (la cloche garde l'historique des messages
+	# importants — le toast ne fait que confirmer l'action).
+	toast_tween = create_tween()
+	toast_tween.tween_property(toast_panel, "modulate:a", 0.0, 0.35)
+	toast_tween.tween_callback(func() -> void: toast_panel.visible = false)

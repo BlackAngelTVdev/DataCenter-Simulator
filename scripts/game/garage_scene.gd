@@ -1211,7 +1211,7 @@ func _bench_repair(bay: int) -> void:
 	if bench_unit.start_repair(bay):
 		GameManager.cash -= cost
 		bench_ui.close()  # le panneau se ferme : la baie travaille TOUTE SEULE
-		hud.toast("Réparation en cours… (~2 min, baie %d occupée — l'autre reste libre)" % (bay + 1), false)
+		hud.toast("Réparation en cours… (~2 min, baie %d occupée — l'autre reste libre)" % (bay + 1), true)
 
 
 func _bench_install(bay: int, os_id: String) -> void:
@@ -2337,9 +2337,9 @@ func _on_install_started(text: String) -> void:
 	## continue en arrière-plan — le joueur peut vaquer à ses occupations.
 	player.carried_item = {}
 	queue_redraw()
-	# Message de DÉBUT de travail à l'établi : info banale, pas besoin de la
-	# retrouver dans la cloche de notifications (silencieux).
-	hud.toast(text, false)
+	# Message de DÉBUT de travail à l'établi : retour immédiat important
+	# (installation ou réparation lancée) — visible et dans la cloche.
+	hud.toast(text, true)
 
 
 func _process_bench_job() -> void:
@@ -2372,7 +2372,7 @@ func _finish_bench_job() -> void:
 	if mode == "repair":
 		item["broken"] = false
 		item["wear"] = clampf(float(item.get("wear", 0.0)) * 0.3, 0.0, 1.0)
-		hud.toast("Serveur réparé ! Reviens à l'établi (E) pour le récupérer et le remonter en armoire.", false)
+		hud.toast("Serveur réparé ! Reviens à l'établi (E) pour le récupérer et le remonter en armoire.", true)
 	else:
 		var os_id := str(job.get("os_id", ""))
 		var proxy := ProxyList.get_proxy(os_id)
@@ -2416,7 +2416,7 @@ func _on_bay_finished(bay: int, is_repair: bool) -> void:
 		return
 	var b: Dictionary = bench_unit.bays[bay]
 	if is_repair:
-		hud.toast("Baie %d : serveur réparé ! Reviens le récupérer (E sur l'établi)." % (bay + 1), false)
+		hud.toast("Baie %d : serveur réparé ! Reviens le récupérer (E sur l'établi)." % (bay + 1), true)
 		return
 	var os_id := str(b.get("os_id", ""))
 	var proxy_id := str(b.get("proxy_id", ""))
