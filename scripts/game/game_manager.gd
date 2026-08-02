@@ -240,9 +240,10 @@ func accept_contract(cid: String, name: String, income_per_month: int) -> void:
 
 func add_notification(text: String) -> void:
 	## Ajoute une notification au centre de notifications (cloche du HUD).
-	## Déduplication : un message identique au précédent ne repart pas deux
-	## fois de suite (anti-spam des toasts répétés). La liste est plafonnée
-	## à 30 entrées (les plus anciennes sortent).
+	## Seuls les messages IMPORTANTS y arrivent (les infos banales passent par
+	## le paramètre notify=false du HUD). Déduplication : un message identique
+	## au précédent ne repart pas deux fois de suite (anti-spam). La liste est
+	## plafonnée à 30 entrées (les plus anciennes sortent).
 	if not notifications.is_empty() and str(notifications.back().get("text", "")) == text:
 		return
 	notifications.append({"text": text, "read": false})

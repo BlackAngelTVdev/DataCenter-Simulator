@@ -175,10 +175,13 @@ func hide_prompt() -> void:
 	prompt_panel.visible = false
 
 
-func toast(text: String) -> void:
-	## Une notification arrive dans la cloche (plus de toast éphémère en haut
-	## de l'écran). On garde le nom « toast » pour ne pas toucher aux appelants.
-	GameManager.add_notification(text)
-	_refresh_badge()
-	if panel_open:
-		_refresh_list()
+func toast(text: String, notify: bool = true) -> void:
+	## Message dans la cloche de notifications. `notify` = false : message
+	## SILENCIEUX (info banale, chat, radio, poses…) qui ne remplit pas le
+	## centre de notifications — on ne garde dans la cloche que l'ESSENTIEL
+	## (incidents, pannes, alertes réseau, succès).
+	if notify:
+		GameManager.add_notification(text)
+		_refresh_badge()
+		if panel_open:
+			_refresh_list()
