@@ -175,11 +175,3 @@ func _draw() -> void:
 		label = OSList.hosting_short(os_id) + " " + label
 	draw_string(font, Vector2(-SIZE.x / 2 + 11, -SIZE.y / 2 + 13), label, \
 		HORIZONTAL_ALIGNMENT_LEFT, SIZE.x - 14, 9, Color(1, 1, 1, 0.9))
-	# Usure : petite barre discrète sous le label (verte -> orange -> rouge)
-	if configured() and wear > 0.02:
-		var bw := 18.0
-		var wx := -SIZE.x / 2 + 11
-		var wy := -SIZE.y / 2 + 19
-		draw_rect(Rect2(wx, wy, bw, 2), Color(0, 0, 0, 0.45))
-		var wcol := Color(0.3, 0.9, 0.4).lerp(Color(0.95, 0.35, 0.25), clampf(wear, 0.0, 1.0))
-		draw_rect(Rect2(wx, wy, bw * clampf(wear, 0.0, 1.0), 2), wcol)
