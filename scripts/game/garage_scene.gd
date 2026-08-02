@@ -613,12 +613,17 @@ func _arm_event_timer() -> void:
 
 # Interaction
 func _nearest_broken_server(max_dist: float) -> ServerUnit:
-	## Le serveur EN PANNE le plus proche (au sol ou monté) : on le PREND en
-	## main (E) pour l'apporter à l'établi — la réparation se fait SUR
-	## l'établi, au prix du marché, et prend ~2 min (le slot est occupé).
+	## Le serveur EN PANNE AU SOL le plus proche : on le PREND en main (E)
+	## pour l'apporter à l'établi — la réparation se fait SUR l'établi, au
+	## prix du marché, et prend ~2 min (le slot est occupé). Un serveur en
+	## panne MONTÉ en armoire n'est PAS pris par E : ça volerait la priorité
+	## au gestionnaire d'armoire (E l'ouvre) — on le déranque depuis le
+	## panneau (bouton « Déranquer »), comme les serveurs sains.
 	var best: ServerUnit = null
 	var best_d := max_dist
 	for s in placed_servers:
+		if s.rack != null:
+			continue
 		if not s.configured() or not s.broken:
 			continue
 		var d := player.global_position.distance_to(s.global_position)
