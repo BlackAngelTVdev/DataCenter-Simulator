@@ -1,19 +1,27 @@
 class_name SaveManager
 
-# Gestionnaire de sauvegardes multi-emplacements (JSON dans user://saves/).
+# Gestionnaire de sauvegardes multi-emplacements.
+# Les fichiers portent l'extension .datacs mais restent du JSON pur dessous
+# (lisible dans un éditeur de texte). Les anciennes sauvegardes .json sont
+# encore chargées (rétrocompat) puis migrées automatiquement au premier save.
 const SLOT_COUNT := 4
 const SAVE_DIR := "user://saves"
+const EXT := ".datacs"
+const LEGACY_EXT := ".json"
 
 static var pending_slot: int = -1  # emplacement choisi dans le menu (-1 = nouvelle partie)
 static var current_slot: int = -1  # emplacement chargé/sauvé de la partie en cours
 
 
 static func slot_path(slot: int) -> String:
-	return SAVE_DIR + "/slot_%d.json" % slot
+	return SAVE_DIR + "/slot_%d%s" % [slot, EXT]
 
 
-static func slot_meta(slot: int) -> Dictionary:
-	var path := slot_path(slot)
+static func legacy_path(slot: int) -> String:
+	return SAVE_DIR + "/slot_%d%s" % [slot, LEGACY_EXT]
+
+
+static func _read(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path):
 		return {}
 	var f := FileAccess.open(path, FileAccess.READ)
@@ -23,6 +31,14 @@ static func slot_meta(slot: int) -> Dictionary:
 	f.close()
 	if typeof(data) != TYPE_DICTIONARY:
 		return {}
+	return data
+
+
+static func slot_meta(slot: int) -> Dictionary:
+	## Lit l'emplacement : d'abord le format .datacs, sinon l'ancien .json.
+	var data := _read(slot_path(slot))
+	if data.is_empty():
+		data = _read(legacy_path(slot))
 	return data
 
 
@@ -44,14 +60,18 @@ static func has_free_slot() -> bool:
 
 
 static func save_data(slot: int, data: Dictionary) -> bool:
-	## Écrit un dictionnaire JSON quelconque dans un emplacement.
+	## Écrit un dictionnaire JSON quelconque dans un emplacement, au format
+	## compact (pas d'indentation : les saves sont plus légères). Un ancien
+	## fichier .json du même emplacement est migré (supprimé) après écriture.
 	slot = clampi(slot, 0, SLOT_COUNT - 1)
 	DirAccess.make_dir_recursive_absolute(SAVE_DIR)
 	var f := FileAccess.open(slot_path(slot), FileAccess.WRITE)
 	if f == null:
 		return false
-	f.store_string(JSON.stringify(data, "\t"))
+	f.store_string(JSON.stringify(data))
 	f.close()
+	if FileAccess.file_exists(legacy_path(slot)):
+		DirAccess.remove_absolute(legacy_path(slot))
 	current_slot = slot
 	return true
 
@@ -71,8 +91,13 @@ static func latest_slot() -> int:
 
 
 static func delete_slot(slot: int) -> void:
-	if not FileAccess.file_exists(slot_path(slot)):
-		return
-	DirAccess.remove_absolute(slot_path(slot))
-	if slot == current_slot:
+	## Supprime l'emplacement (formats .datacs ET .json, au cas où).
+	var removed := false
+	if FileAccess.file_exists(slot_path(slot)):
+		DirAccess.remove_absolute(slot_path(slot))
+		removed = true
+	if FileAccess.file_exists(legacy_path(slot)):
+		DirAccess.remove_absolute(legacy_path(slot))
+		removed = true
+	if removed and slot == current_slot:
 		current_slot = -1

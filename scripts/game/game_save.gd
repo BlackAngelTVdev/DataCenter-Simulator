@@ -9,15 +9,24 @@ static func persist(garage: GarageScene) -> bool:
 	## Sauvegarde l'état complet : les DEUX mondes placés (garage + Data Hall)
 	## et le colis porté (global, il voyage avec le joueur). Chaque local garde
 	## SES serveurs/armoires/étagères — deux endroits bien distincts.
+	## Les items sont COMPACTÉS (id + état runtime) : le reste du dictionnaire
+	## (prix, specs, couleurs…) est re-dérivé du catalogue au chargement, donc
+	## les saves sont beaucoup plus légères sans perdre d'information.
 	GameManager.worlds[garage.location_id] = garage.world_placed()
 	GameManager.carried = garage.player.carried_item.duplicate(true)
+	var bj := GameManager.bench_job.duplicate(true)
+	if bj.has("item"):
+		bj["item"] = compact_item(bj.get("item", {}))
+	var deliveries := []
+	for d in GameManager.deliveries:
+		deliveries.append(compact_item(d))
 	var data := {
 		"version": SAVE_VERSION,
 		"worlds": {
-			"0": GameManager.worlds.get(0, {}),
-			"1": GameManager.worlds.get(1, {}),
+			"0": _map_world_items(GameManager.worlds.get(0, {}), compact_item),
+			"1": _map_world_items(GameManager.worlds.get(1, {}), compact_item),
 		},
-		"carried": GameManager.carried.duplicate(true),
+		"carried": compact_item(GameManager.carried.duplicate(true)),
 		"money": GameManager.cash,
 		"temperature": GameManager.temperature,
 		"abo_id": GameManager.abo_id,
@@ -25,10 +34,10 @@ static func persist(garage: GarageScene) -> bool:
 		"owned": GameManager.owned.keys(),
 		"rack_limit": GameManager.rack_limit,
 		"clim_limit": GameManager.clim_limit,
-		"bench_job": GameManager.bench_job.duplicate(true),  # le serveur reste posé sur l'établi
+		"bench_job": bj,  # le serveur reste posé sur l'établi
 		"location": GameManager.location,
 		"location_unlocked": GameManager.location_unlocked,
-		"deliveries": GameManager.deliveries.duplicate(true),
+		"deliveries": deliveries,
 		"cat_fed": GameManager.cat_fed,
 		"cat_adopted": GameManager.cat_adopted,
 		"cat_pets": GameManager.cat_pets,
@@ -139,6 +148,10 @@ static func load_into(garage: GarageScene) -> void:
 	if typeof(del_raw) == TYPE_ARRAY:
 		for did in del_raw:
 			GameManager.deleted_mails[str(did)] = true
+	# Migration : purge des e-mails fantômes des anciennes saves (avant la
+	# suppression RÉELLE). Elles gardaient les e-mails supprimés dans
+	# received_mails + leurs ids dans deleted_mails : on allège silencieusement.
+	_cleanup_mail_ghosts()
 	# Succès débloqués + contrats d'entreprise signés (listes d'ids).
 	GameManager.achievements = {}
 	var ach_raw: Variant = data.get("achievements", [])
@@ -166,9 +179,11 @@ static func load_into(garage: GarageScene) -> void:
 	var worlds: Variant = data.get("worlds", {})
 	if typeof(worlds) == TYPE_DICTIONARY and not (worlds as Dictionary).is_empty():
 		var wd: Dictionary = worlds
+		# Les items sont EXPANDÉS (catalogue + état runtime) : la simulation de
+		# l'autre local lit des items complets, pas des ids nus.
 		GameManager.worlds = {
-			0: wd.get("0", {}),
-			1: wd.get("1", {}),
+			0: _map_world_items(wd.get("0", {}) as Dictionary, restore_item),
+			1: _map_world_items(wd.get("1", {}) as Dictionary, restore_item),
 		}
 	else:
 		var flat := {}
@@ -176,7 +191,7 @@ static func load_into(garage: GarageScene) -> void:
 			if data.has(k):
 				flat[k] = data[k]
 		GameManager.worlds = {0: {}, 1: {}}
-		GameManager.worlds[GameManager.location] = flat
+		GameManager.worlds[GameManager.location] = _map_world_items(flat, restore_item)
 
 	# Colis porté (global) : les mondes ne le contiennent plus (v3).
 	var carried: Variant = data.get("carried", {})
@@ -209,6 +224,129 @@ static func _vec_to_arr(v: Vector2) -> Array:
 
 
 # Helpers
+static func _cleanup_mail_ghosts() -> void:
+	## Migration silencieuse des anciennes saves : avant la suppression RÉELLE
+	## des e-mails (mail_ui.gd), un e-mail supprimé restait dans received_mails
+	## et son id s'accumulait dans deleted_mails. On purge :
+	## 1. les ids RANDOM (rand_*) de deleted_mails — un e-mail aléatoire
+	##    supprimé est désormais retiré du tableau, plus besoin de le tracer ;
+	## 2. les e-mails fantômes de received_mails (ids listés dans deleted_mails) ;
+	## 3. les ids correspondants de mails_seen (le « lu » d'un mail disparu).
+	## Les ids du pool CLIENTS (mail_*) restent dans deleted_mails : le pool
+	## statique est re-dérivé à chaque refresh, il faut les masquer pour de bon.
+	var pool_ids := {}
+	for m in MailPool.MAILS:
+		pool_ids[str(m.get("id", ""))] = true
+	# Les ids SUPPRIMÉS (avant purge) : les e-mails du pool clients (mail_*)
+	# doivent rester masqués ; les ids RANDOM (rand_*) sont des fantômes.
+	var deleted_ids := []
+	for mid in GameManager.deleted_mails:
+		deleted_ids.append(str(mid))
+	for mid in deleted_ids:
+		if not pool_ids.has(mid):
+			GameManager.deleted_mails.erase(mid)
+			GameManager.mails_seen.erase(mid)
+	# Purge des e-mails fantômes de received_mails : tout e-mail dont l'id
+	# figurait dans deleted_mails (supprimé dans une ancienne save) sort du
+	# tableau — il n'a plus à y rester (les ids rand_* ont été purgés de
+	# deleted_mails juste au-dessus, d'où la copie deleted_ids AVANT purge).
+	var kept := []
+	for rm in GameManager.received_mails:
+		if not (rm as Dictionary).is_empty() and deleted_ids.has(str(rm.get("id", ""))):
+			GameManager.mails_seen.erase(str(rm.get("id", "")))
+			continue  # e-mail supprimé : retiré du tableau
+		kept.append(rm)
+	GameManager.received_mails = kept
+
+
+static func compact_item(item: Dictionary) -> Dictionary:
+	## Compacte un item pour la sauvegarde : on ne garde que l'id + les champs
+	## runtime (os, proxy, usure, panne, livraison) — le reste (prix, specs,
+	## couleurs…) est re-dérivé du catalogue au chargement via restore_item.
+	## Les items HORS catalogue (serveurs configurés du Neuf, kits) sont
+	## conservés EN ENTIER : on ne peut pas les reconstruire à partir d'un id.
+	if item.is_empty():
+		return {}
+	var out := {"id": str(item.get("id", ""))}
+	if ShopCatalog.get_item(out["id"]).is_empty():
+		return item.duplicate(true)
+	for k in ["os", "os_name", "proxy", "proxy_name", "wear", "broken", "loc"]:
+		if item.has(k):
+			out[k] = item[k]
+	return out
+
+
+static func _map_world_items(world: Dictionary, fn: Callable) -> Dictionary:
+	## Applique fn() à chaque item du monde (armoires : item/batterie/switch ;
+	## serveurs : item ; clims : item ; déco : item ; établi : item ; étagère :
+	## chaque item). Utilisée pour COMPACTER (persist) et EXPANDRE (load).
+	var out := {}
+	for key in world:
+		out[key] = world[key]
+	var racks: Array = []
+	for rd in world.get("racks", []):
+		if typeof(rd) != TYPE_DICTIONARY:
+			continue
+		var r: Dictionary = rd
+		var r2 := {}
+		for k in r:
+			r2[k] = r[k]
+		r2["item"] = fn.call(r.get("item", {}))
+		r2["battery"] = fn.call(r.get("battery", {}))
+		r2["switch"] = fn.call(r.get("switch", {}))
+		racks.append(r2)
+	out["racks"] = racks
+	var servers: Array = []
+	for sd in world.get("servers", []):
+		if typeof(sd) != TYPE_DICTIONARY:
+			continue
+		var s: Dictionary = sd
+		var s2 := {}
+		for k in s:
+			s2[k] = s[k]
+		s2["item"] = fn.call(s.get("item", {}))
+		servers.append(s2)
+	out["servers"] = servers
+	var clims: Array = []
+	for cd in world.get("clims", []):
+		if typeof(cd) != TYPE_DICTIONARY:
+			continue
+		var c: Dictionary = cd
+		var c2 := {}
+		for k in c:
+			c2[k] = c[k]
+		c2["item"] = fn.call(c.get("item", {}))
+		clims.append(c2)
+	out["clims"] = clims
+	var decos: Array = []
+	for dd in world.get("decos", []):
+		if typeof(dd) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = dd
+		var d2 := {}
+		for k in d:
+			d2[k] = d[k]
+		d2["item"] = fn.call(d.get("item", {}))
+		decos.append(d2)
+	out["decos"] = decos
+	var bench: Array = []
+	for bd in world.get("bench", []):
+		if typeof(bd) != TYPE_DICTIONARY:
+			continue
+		var b: Dictionary = bd
+		var b2 := {}
+		for k in b:
+			b2[k] = b[k]
+		b2["item"] = fn.call(b.get("item", {}))
+		bench.append(b2)
+	out["bench"] = bench
+	var storage: Array = []
+	for it in world.get("storage", []):
+		storage.append(fn.call(it))
+	out["storage"] = storage
+	return out
+
+
 static func restore_item(raw: Variant) -> Dictionary:
 	## Repart de la fiche catalogue (id) pour retrouver des valeurs typées
 	## (Color, nombres) propres — le JSON ne garde pas les types Color.
