@@ -19,6 +19,12 @@ var wear := 0.0
 ## Panne : le serveur ne produit plus rien (revenus à zéro) jusqu'à la
 ## maintenance (E près du serveur). Sauvegardé dans le monde.
 var broken := false
+## Compte à rebours de panne (secondes restantes) quand l'usure dépasse le
+## seuil de panne garantie : au-delà de ~80 % d'usure, le serveur est voué à
+## tomber en panne dans les 2-5 min de fonctionnement (plus de tirage au
+## sort qui pouvait ne jamais tomber). 0 = pas programmé (sous le seuil).
+## Non sauvegardé : il repart d'un nouveau tirage après rechargement.
+var wear_break_timer := 0
 
 var _body: Sprite2D
 var _led: Sprite2D

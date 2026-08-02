@@ -77,13 +77,18 @@ const OUTAGE_COOLDOWN_MIN := 120
 const OUTAGE_COOLDOWN_MAX := 240
 
 ## Usure des serveurs : augmentation par seconde de fonctionnement et
-## probabilité de panne (proportionnelle à l'usure). À l'usure max (1.0),
-## la probabilité par tick est BREAK_CHANCE (≈ 0,02 %/s : une panne toutes
-## les ~80 min pour une machine très usée). L'usure complète (1.0) met
-## ~2 h 45 de fonctionnement continu à arriver — un serveur neuf reste
-## fiable longtemps, la maintenance (E) reste utile en fin de vie.
+## probabilité de panne. Sous le seuil de garantie, la panne reste un tirage
+## proportionnel à l'usure (BREAK_CHANCE à l'usure max ≈ 0,02 %/s). Au-delà
+## de WEAR_GUARANTEE (80 %), la panne devient QUASI GARANTIE : un compte à
+## rebours (2-5 min de fonctionnement, WEAR_BREAK_MIN/MAX) remplace le tirage
+## qui pouvait ne jamais tomber — un serveur à 100 % d'usure casse donc
+## forcément, dans les minutes qui suivent. L'usure complète met ~2 h 45 de
+## fonctionnement continu à arriver ; la maintenance (E) reste utile.
 const WEAR_PER_TICK := 0.0001
 const BREAK_CHANCE := 0.0002
+const WEAR_GUARANTEE := 0.8
+const WEAR_BREAK_MIN_SECONDS := 120
+const WEAR_BREAK_MAX_SECONDS := 300
 
 var player: Player
 var hud: HUD
@@ -2242,7 +2247,23 @@ func _on_tick() -> void:
 		if not _server_running(s):
 			continue
 		s.wear = clampf(s.wear + WEAR_PER_TICK, 0.0, 1.0)
-		if randf() < s.wear * BREAK_CHANCE:
+		var broke_now := false
+		if s.wear >= WEAR_GUARANTEE:
+			# Haute usure : la panne devient QUASI GARANTIE — un compte à
+			# rebours (2-5 min de fonctionnement) remplace le tirage 0,02 %/s
+			# qui pouvait ne jamais tomber. Un serveur à 100 % d'usure casse
+			# donc forcément, dans les minutes qui suivent. Le délai est
+			# DÉTERMINISTE par identité du serveur (voir _server_break_deadline)
+			# : un save/load ne peut pas repousser indéfiniment la panne.
+			if s.wear_break_timer <= 0:
+				s.wear_break_timer = _server_break_deadline(s)
+			s.wear_break_timer -= 1
+			broke_now = s.wear_break_timer <= 0
+		else:
+			# Sous le seuil : le petit tirage historique (très rare au début,
+			# il devient plus probable à mesure que l'usure monte).
+			broke_now = randf() < s.wear * BREAK_CHANCE
+		if broke_now:
 			s.broken = true
 			s.queue_redraw()
 			hud.toast("%s est tombé en PANNE ! Prends-le (E) et apporte-le à l'établi pour le réparer (%d $, ~2 min)." % [s.item.get("name", "Serveur"), ShopCatalog.repair_price(s.item)])
@@ -2276,6 +2297,16 @@ func _on_tick() -> void:
 	# Succès : vérifie les conditions à chaque tick, toaste les nouveaux.
 	for a in Achievements.check_all():
 		hud.toast("SUCCÈS DÉBLOQUÉ : %s — %s" % [a.get("name", "?"), a.get("desc", "")])
+
+
+func _server_break_deadline(s: ServerUnit) -> int:
+	## Délai de panne (2-5 min) pour un serveur au-delà du seuil d'usure. La
+	## valeur est DÉRIVÉE de l'identité du serveur (case + modèle) : elle ne
+	## change pas entre deux rechargements, même si le compteur lui-même n'est
+	## pas persisté — un save/load ne donne donc pas 2-5 min de sursis en plus.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("wearbreak_" + str(s.cell) + "_" + str(s.item.get("id", "")))
+	return rng.randi_range(WEAR_BREAK_MIN_SECONDS, WEAR_BREAK_MAX_SECONDS)
 
 
 func _server_running(s: ServerUnit) -> bool:
