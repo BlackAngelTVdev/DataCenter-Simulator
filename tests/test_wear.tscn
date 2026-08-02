@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scripts/game/garage_scene.gd" id="1_garage"]
+[ext_resource type="Script" path="res://scripts/game/scenes/garage_scene.gd" id="1_garage"]
 [ext_resource type="Script" path="res://tests/test_wear.gd" id="2_test"]
 
 [node name="Garage" type="Node2D"]

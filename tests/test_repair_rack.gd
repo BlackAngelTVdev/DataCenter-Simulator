@@ -1,8 +1,10 @@
 extends Node
 
 # Test du flux de RÉPARATION d'un serveur en panne MONTÉ EN ARMOIRE :
-# le serveur tombe en panne dans son rack -> E le déranque et le prend ->
-# E sur l'établi -> Réparer -> récupérer.
+# le serveur tombe en panne dans son rack -> E ouvre le GESTIONNAIRE
+# d'armoire -> bouton « Déranquer » du panneau -> E sur l'établi -> Réparer
+# -> récupérer. (Depuis le fix, E ne déranque plus directement : il ouvre
+# le gestionnaire, comme demandé.)
 
 func _ready() -> void:
 	await get_tree().process_frame
@@ -42,9 +44,17 @@ func _ready() -> void:
 	garage.player.position = garage._cell_center(Vector2i(11, 6))
 	garage.player.carried_item = {}
 
-	# 2. E près de l'armoire : le serveur en panne est pris en main (déranqué).
+	# 2. E près de l'armoire : le GESTIONNAIRE d'armoire s'ouvre (E ne déranque
+	# plus directement — c'est le panneau qui le fait via « Déranquer »).
 	print("TEST rack_broken_detect=", garage._nearest_broken_server(62.0) != null)
 	garage._try_interact()
+	print("TEST rack_ui_open=", garage.rack_ui.visible)
+	if not garage.rack_ui.visible:
+		print("TEST_RESULT=FAIL (gestionnaire d'armoire pas ouvert)")
+		get_tree().quit(1)
+		return
+	# Le bouton « Déranquer » du panneau récupère le serveur en panne.
+	garage._unrack(s)
 	var carried: Dictionary = garage.player.carried_item
 	print("TEST rack_carried_broken=", carried.get("broken", false), " rack_mounted_left=", rack.mounted.size())
 	if not bool(carried.get("broken", false)):
