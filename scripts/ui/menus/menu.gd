@@ -7,6 +7,7 @@ const MENU_IMAGE := "res://assets/images/menu_image.svg"
 
 var options_panel: OptionsPanel
 var save_slots: SaveSlotsScreen
+var import_dialog: ImportSaveDialog
 
 
 func _ready() -> void:
@@ -22,6 +23,14 @@ func _ready() -> void:
 	add_child(save_slots)
 	save_slots.load_requested.connect(_on_slot_load)
 	save_slots.new_game_requested.connect(_on_new_game)
+	import_dialog = ImportSaveDialog.new()
+	import_dialog.name = "ImportSaveDialog"
+	add_child(import_dialog)
+	import_dialog.import_requested.connect(_on_import_save)
+	import_dialog.dismissed.connect(func() -> void: SaveManager.pending_import_path = "")
+	# Double-clic sur un .datacs dans l'explorateur Windows : le système lance
+	# le jeu avec le chemin en argument -> on propose de l'importer.
+	_check_datacs_argument()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -106,6 +115,38 @@ func _build_menu() -> void:
 	quit_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	quit_btn.pressed.connect(_on_quit)
 	row.add_child(quit_btn)
+
+
+func _check_datacs_argument() -> void:
+	## Si le jeu a été lancé avec un chemin .datacs (double-clic Windows sur un
+	## fichier de sauvegarde), on ouvre le dialogue d'import dans un emplacement.
+	var arg_path := ""
+	for arg in OS.get_cmdline_user_args():
+		if arg.to_lower().ends_with(SaveManager.EXT):
+			arg_path = arg
+			break
+	if arg_path.is_empty():
+		for arg in OS.get_cmdline_args():
+			if arg.to_lower().ends_with(SaveManager.EXT):
+				arg_path = arg
+				break
+	if not arg_path.is_empty() and FileAccess.file_exists(arg_path):
+		SaveManager.pending_import_path = arg_path
+		import_dialog.open(arg_path)
+
+
+func _on_import_save(slot: int) -> void:
+	## « Importer ici » : copie la sauvegarde externe dans l'emplacement puis
+	## charge directement cette partie.
+	if SaveManager.pending_import_path.is_empty():
+		import_dialog.visible = false
+		return
+	if SaveManager.import_external(SaveManager.pending_import_path, slot):
+		import_dialog.visible = false
+		SaveManager.pending_slot = slot
+		_go_to_game()
+	else:
+		import_dialog.refresh()
 
 
 func _on_resume() -> void:

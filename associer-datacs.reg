@@ -1,0 +1,18 @@
+Windows Registry Editor Version 5.00
+
+; Associe l'extension .datacs au jeu (double-clic = ouvrir le jeu et proposer
+; d'importer la sauvegarde dans un emplacement).
+; À adapter si l'exe du jeu est ailleurs que D:\datasimulator\export\v1.exe.
+; Double-clic sur ce fichier, puis "Oui" pour l'ajouter au registre.
+
+[HKEY_CURRENT_USER\Software\Classes\.datacs]
+@="DataCenterSimulator.save"
+
+[HKEY_CURRENT_USER\Software\Classes\DataCenterSimulator.save]
+@="Sauvegarde DataCenter Simulator"
+
+[HKEY_CURRENT_USER\Software\Classes\DataCenterSimulator.save\DefaultIcon]
+@="\"D:\\datasimulator\\export\\v1.exe\",0"
+
+[HKEY_CURRENT_USER\Software\Classes\DataCenterSimulator.save\shell\open\command]
+@="\"D:\\datasimulator\\export\\v1.exe\" \"%1\""

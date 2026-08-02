@@ -11,6 +11,7 @@ const LEGACY_EXT := ".json"
 
 static var pending_slot: int = -1  # emplacement choisi dans le menu (-1 = nouvelle partie)
 static var current_slot: int = -1  # emplacement chargé/sauvé de la partie en cours
+static var pending_import_path: String = ""  # .datacs ouvert par double-clic (à importer)
 
 
 static func slot_path(slot: int) -> String:
@@ -101,3 +102,45 @@ static func delete_slot(slot: int) -> void:
 		removed = true
 	if removed and slot == current_slot:
 		current_slot = -1
+
+
+static func external_save_meta(path: String) -> Dictionary:
+	## Infos d'une sauvegarde EXTERNE (.datacs double-cliqué, n'importe où sur
+	## le disque) : {money, saved_at, location, valid} — vide si fichier
+	## illisible OU pas une sauvegarde de ce jeu (version < 2, même critère que
+	## GameSave.load_into). Refuser d'emblée évite d'écraser un emplacement
+	## avec un fichier étranger ou corrompu.
+	var data := _read(path)
+	if data.is_empty() or int(data.get("version", 1)) < 2:
+		return {}
+	return {
+		"valid": true,
+		"money": int(data.get("money", 0)),
+		"saved_at": float(data.get("saved_at", 0.0)),
+		"location": int(data.get("location", 0)),
+	}
+
+
+static func import_external(path: String, slot: int) -> bool:
+	## Importe une sauvegarde EXTERNE (.datacs double-cliqué) dans un
+	## emplacement : le contenu est copié dans slot_<slot>.datacs (les anciens
+	## .json du slot sont migrés/supprimés). L'emplacement est ensuite chargé
+	## normalement (pending_slot).
+	## Refuse tout fichier qui n'est PAS une sauvegarde valide (version >= 2,
+	## même critère que GameSave.load_into) : un .datacs étranger ou corrompu
+	## ne doit JAMAIS écraser une vraie partie.
+	var data := _read(path)
+	if data.is_empty() or int(data.get("version", 1)) < 2:
+		return false
+	slot = clampi(slot, 0, SLOT_COUNT - 1)
+	DirAccess.make_dir_recursive_absolute(SAVE_DIR)
+	var f := FileAccess.open(slot_path(slot), FileAccess.WRITE)
+	if f == null:
+		return false
+	f.store_string(JSON.stringify(data))
+	f.close()
+	if FileAccess.file_exists(legacy_path(slot)):
+		DirAccess.remove_absolute(legacy_path(slot))
+	current_slot = slot
+	pending_import_path = ""
+	return true
