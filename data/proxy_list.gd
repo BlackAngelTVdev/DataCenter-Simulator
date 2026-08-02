@@ -5,6 +5,7 @@ extends RefCounted
 # monde sur le réseau (dépasse la limite de l'abonnement). Licence achat unique.
 const PROXIES := [
 	{
+		"kind": "proxy",
 		"id": "proxy_nginx",
 		"name": "N'Ginx Community",
 		"desc": "Reverse proxy de référence : +100 clients en ligne en même temps dans ce local.",
@@ -14,6 +15,7 @@ const PROXIES := [
 		"price": 250,
 	},
 	{
+		"kind": "proxy",
 		"id": "proxy_haproxy",
 		"name": "H'Proxy Edge",
 		"desc": "Load balancer professionnel : +300 clients en ligne en même temps dans ce local.",
@@ -23,6 +25,7 @@ const PROXIES := [
 		"price": 700,
 	},
 	{
+		"kind": "proxy",
 		"id": "proxy_traefik",
 		"name": "Trafik Gate 9000",
 		"desc": "Reverse proxy nouvelle génération : +700 clients en ligne en même temps dans ce local. Le must du Data Hall.",
