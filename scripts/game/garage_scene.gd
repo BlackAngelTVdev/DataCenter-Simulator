@@ -58,23 +58,23 @@ const AUTOSAVE_INTERVAL := 60.0  # sauvegarde automatique toutes les 60 s
 ## E-mails aléatoires (pub / offres / newsletters) : probabilité de départ par
 ## tick (1 s) et cooldown après réception — la boîte Mail se remplit au fil
 ## de la partie, sans spammer.
-const MAIL_CHANCE := 0.006        # ~1 e-mail toutes les 3 min en moyenne
+const MAIL_CHANCE := 0.003        # ~1 e-mail toutes les ~5 min en moyenne
 const MAIL_COOLDOWN_MIN := 45     # 45 s minimum entre deux e-mails
 
 ## Incidents réseau (DDoS / coupures) : probabilité de départ par tick (1 s)
 ## et durées. Le pare-feu bloque les DDoS ; les armoires avec onduleur (UPS)
 ## survivent aux coupures. Ça rend enfin utiles le Pare-feu Forteresse et la
 ## batterie, et ça ajoute du stress « est-ce que je suis protégé ? ».
-const DDOS_CHANCE := 0.012
+const DDOS_CHANCE := 0.005
 const DDOS_DUR_MIN := 10
 const DDOS_DUR_MAX := 22
-const DDOS_COOLDOWN_MIN := 45
-const DDOS_COOLDOWN_MAX := 90
-const OUTAGE_CHANCE := 0.008
+const DDOS_COOLDOWN_MIN := 120
+const DDOS_COOLDOWN_MAX := 240
+const OUTAGE_CHANCE := 0.004
 const OUTAGE_DUR_MIN := 8
 const OUTAGE_DUR_MAX := 16
-const OUTAGE_COOLDOWN_MIN := 50
-const OUTAGE_COOLDOWN_MAX := 100
+const OUTAGE_COOLDOWN_MIN := 120
+const OUTAGE_COOLDOWN_MAX := 240
 
 ## Usure des serveurs : augmentation par seconde de fonctionnement et
 ## probabilité de panne (proportionnelle à l'usure). À l'usure max (1.0),
@@ -218,11 +218,11 @@ func _ready() -> void:
 	if location_id == 0 and GameManager.cat_adopted and not is_instance_valid(garage_cat):
 		_spawn_garage_cat(true)
 	if _just_teleported:
-		hud.toast("Bienvenue au %s ! (la voiture est dehors pour te déplacer)" % _loc_name())
+		hud.toast("Bienvenue au %s ! (la voiture est dehors pour te déplacer)" % _loc_name(), false)
 	elif SaveManager.current_slot >= 0:
-		hud.toast("Partie chargée (emplacement %d) !" % (SaveManager.current_slot + 1))
+		hud.toast("Partie chargée (emplacement %d) !" % (SaveManager.current_slot + 1), false)
 	else:
-		hud.toast("Bienvenue au garage ! Le PC est en haut à droite — approche-toi et appuie sur E.")
+		hud.toast("Bienvenue au garage ! Le PC est en haut à droite — approche-toi et appuie sur E.", false)
 	# Rétrocompat : une ancienne sauvegarde a des armoires SANS switch — les
 	# serveurs montés ne rapportent plus. On prévient une fois pour que le
 	# joueur comprenne la chute de revenus (le RackUI l'affiche aussi). Le HUD
@@ -627,7 +627,7 @@ func _take_broken_server(s: ServerUnit) -> void:
 	## Prendre un serveur EN PANNE (au sol ou monté) : il revient dans les
 	## mains, prêt à être porté à l'établi pour la réparation (~2 min).
 	if player.is_carrying():
-		hud.toast("Dépose d'abord ce que tu portes !")
+		hud.toast("Dépose d'abord ce que tu portes !", false)
 		return
 	var carried := s.item.duplicate(true)
 	carried["wear"] = s.wear
@@ -645,7 +645,28 @@ func _take_broken_server(s: ServerUnit) -> void:
 	placed_servers.erase(s)
 	s.queue_free()
 	_recompute_stats()
-	hud.toast("Serveur en panne en main — apporte-le à l'établi pour le réparer (prix du marché, ~2 min).")
+	hud.toast("Serveur en panne en main — apporte-le à l'établi pour le réparer (prix du marché, ~2 min).", false)
+
+
+func _bench_in_range() -> bool:
+	## Un établi (garage OU Data Hall) est-il à portée ? (utilisé pour que la
+	## radio, posée juste à côté, ne vole pas le E quand l'établi est le bon
+	## interlocuteur)
+	for it in interactables:
+		var is_bench: bool = (it is Interactable and it.kind == "bench") or it is BenchUnit
+		if is_bench and player.global_position.distance_to(it.global_position) <= INTERACT_RANGE:
+			return true
+	return false
+
+
+func _bench_is_target() -> bool:
+	## L'établi est-il le bon interlocuteur du E (et non la radio) ?
+	## Serveur à installer / réparer en main, ou travail d'établi en cours.
+	if player.is_carrying():
+		var c := player.carried_item
+		return c.get("kind", "") == "server" \
+				and (c.get("broken", false) or (not c.has("os") and not c.has("proxy")))
+	return install_ui.busy()
 
 
 func _nearest_interactable(max_dist: float) -> Node:
@@ -667,23 +688,27 @@ func _nearest_interactable(max_dist: float) -> Node:
 			# à CE local (chaque hangar reçoit ses propres commandes).
 			if it.kind == "delivery" and _deliveries_here() == 0:
 				continue
-			# L'établi du garage sert pour un serveur SANS OS OU EN PANNE, OU
-			# pour suivre/récupérer un travail en cours (mains vides + job actif) :
-			# sinon il bloquerait la pose (le joueur resterait « coincé »).
+			# L'établi est accessible SAUF quand on porte un objet plaçable
+			# (serveur configuré, armoire, clim…) : dans ce cas E doit POSER
+			# l'objet, pas ouvrir l'établi. Un serveur à installer ou à
+			# réparer en main (même configuré et tombé en panne) reste le bon
+			# interlocuteur de l'établi.
 			if it.kind == "bench":
 				var carried := player.carried_item
-				var can_start: bool = player.is_carrying() and carried.get("kind", "") == "server" \
+				var for_bench: bool = player.is_carrying() and carried.get("kind", "") == "server" \
 						and (carried.get("broken", false) or (not carried.has("os") and not carried.has("proxy")))
-				var can_follow := not player.is_carrying() and install_ui.busy()
-				if not can_start and not can_follow:
+				if not for_bench and _carried_placable():
 					continue
 			# Le bureau ne doit pas voler la priorité sur la pose : si le joueur
 			# porte un objet plaçable, E pose — il ira voir les factures plus tard.
 			if it.kind == "desk" and _carried_placable():
 				continue
-			# La radio non plus : porter un serveur/armoire à côté de l'établi
-			# doit poser l'objet, pas allumer la radio.
-			if it.kind == "radio" and _carried_placable():
+			# La radio est posée juste À CÔTÉ de l'établi : elle ne doit pas
+			# voler le E quand l'établi est le bon interlocuteur (serveur à
+			# installer/réparer en main, ou travail en cours) — ni quand on
+			# porte un objet plaçable, qui doit se poser. Mains vides et aucun
+			# travail : la radio reste utilisable (le plus proche gagne).
+			if it.kind == "radio" and (_carried_placable() or (_bench_in_range() and _bench_is_target())):
 				continue
 			# La table d'assemblage non plus : c'est une zone de pose fréquente
 			# (à côté de l'établi) — porter un objet plaçable doit POSER, pas
@@ -731,7 +756,7 @@ func _prompt_for(it: Node) -> String:
 						return "E — Réparer %s sur l'établi (%d $, ~2 min)" % [item.get("name", "Serveur"), ShopCatalog.repair_price(item)]
 					if item.get("kind", "") == "server" and not item.has("os") and not item.has("proxy"):
 						return "E — Installer l'OS sur %s" % item.get("name", "")
-				return ""
+				return "E — Établi du garage"
 			"delivery":
 				return "E — Récupérer la livraison (%d)" % _deliveries_here()
 			"car":
@@ -758,20 +783,20 @@ func _floor_prompt() -> String:
 			if item.get("broken", false):
 				return "Serveur EN PANNE — apporte-le à l'établi pour le réparer (clic gauche pour le poser en attendant)"
 			if item.has("os") or item.has("proxy"):
-				return "Clic gauche — Poser le serveur (E fonctionne aussi)"
+				return "Clic gauche — Poser le serveur (E ne fait que le monter en armoire proche)"
 			return "Apporte ce serveur à l'établi (E) pour installer un OS"
 		"kit":
 			return "Kit serveur neuf — apporte-le à la TABLE D'ASSEMBLAGE (E) du Data Hall"
 		"furniture":
-			return "Clic gauche — Poser l'armoire (E fonctionne aussi)"
+			return "Clic gauche — Poser l'armoire"
 		"battery":
-			return "Clic gauche — Installer la batterie contre une armoire (E fonctionne aussi)"
+			return "Clic gauche — Installer la batterie contre une armoire"
 		"switch":
-			return "Clic gauche — Installer le switch contre une armoire (E fonctionne aussi)"
+			return "Clic gauche — Installer le switch contre une armoire"
 		"clim":
-			return "Clic gauche — Poser le climatiseur (E fonctionne aussi)"
+			return "Clic gauche — Poser le climatiseur"
 		"decor":
-			return "Clic gauche — Poser la déco (E fonctionne aussi)"
+			return "Clic gauche — Poser la déco"
 		"catfood":
 			return "E — Verser la nourriture dans la gamelle (près de l'étagère)"
 	return ""
@@ -871,7 +896,7 @@ func _try_interact() -> void:
 		# le joueur vers l'établi (la réparation s'y fait, ~2 min, slot occupé).
 		var carried := player.carried_item
 		if carried.get("kind", "") == "server" and carried.get("broken", false):
-			hud.toast("Va à l'établi pour réparer ce serveur en panne (prix du marché, ~2 min).")
+			hud.toast("Va à l'établi pour réparer ce serveur en panne (prix du marché, ~2 min).", false)
 			return
 		_try_place_carried()
 
@@ -880,7 +905,7 @@ func _radio_toggle() -> void:
 	if radio_unit == null:
 		return
 	radio_unit.toggle()
-	hud.toast("Radio %s !" % ("éteinte" if not radio_unit.on else "allumée — le garage a de l'ambiance"))
+	hud.toast("Radio %s !" % ("éteinte" if not radio_unit.on else "allumée — le garage a de l'ambiance"), false)
 
 
 func _assembly_interact() -> void:
@@ -891,9 +916,9 @@ func _assembly_interact() -> void:
 		assembly_ui.open(player.carried_item)
 		return
 	if player.is_carrying():
-		hud.toast("Cette table assemble des KITS serveurs neufs (site Neuf du PC) — pas ce que tu portes.")
+		hud.toast("Cette table assemble des KITS serveurs neufs (site Neuf du PC) — pas ce que tu portes.", false)
 		return
-	hud.toast("La table d'assemblage assemble des kits serveurs neufs. Commande un serveur sur mesure sur le site « Neuf » du PC (Data Hall).")
+	hud.toast("La table d'assemblage assemble des kits serveurs neufs. Commande un serveur sur mesure sur le site « Neuf » du PC (Data Hall).", false)
 
 
 func _on_kit_assembled(item: Dictionary) -> void:
@@ -901,7 +926,7 @@ func _on_kit_assembled(item: Dictionary) -> void:
 	## attend un OS à l'établi, puis se pose / se monte comme n'importe quel
 	## serveur (avec les specs choisies au configurateur).
 	player.carried_item = item
-	hud.toast("%s assemblé ! Installe un OS à l'établi (E)." % item.get("name", "Serveur"))
+	hud.toast("%s assemblé ! Installe un OS à l'établi (E)." % item.get("name", "Serveur"), false)
 
 
 func _pet_cat(cat: GarageCat) -> void:
@@ -909,14 +934,14 @@ func _pet_cat(cat: GarageCat) -> void:
 	## un COOLDOWN (45 s) — impossible de caresser en boucle pour débloquer le
 	## succès rapidement. La vérification des succès se fait au tick ET ici.
 	if not cat.can_pet():
-		hud.toast("Le chat se repose encore… reviens dans un instant.")
+		hud.toast("Le chat se repose encore… reviens dans un instant.", false)
 		return
 	cat.pet()
 	GameManager.cat_pets += 1
 	# Succès vérifié immédiatement (le tick le referait de toute façon).
 	for a in Achievements.check_all():
 		hud.toast("SUCCÈS DÉBLOQUÉ : %s — %s" % [a.get("name", "?"), a.get("desc", "")])
-	hud.toast("Le chat ronronne de plaisir !")
+	hud.toast("Le chat ronronne de plaisir !", false)
 
 
 func _bowl_interact() -> void:
@@ -928,7 +953,7 @@ func _bowl_interact() -> void:
 			if GameManager.cat_fed:
 				# La gamelle est déjà pleine : ne pas gaspiller l'achat (le chat
 				# la videra tout seul de temps en temps).
-				hud.toast("La gamelle est déjà pleine — le chat mangera bientôt, garde ta nourriture.")
+				hud.toast("La gamelle est déjà pleine — le chat mangera bientôt, garde ta nourriture.", false)
 				return
 			player.carried_item = {}
 			GameManager.cat_fed = true
@@ -937,14 +962,14 @@ func _bowl_interact() -> void:
 			# Le chat vit au GARAGE (DC-1) : c'est là qu'il traîne d'habitude.
 			if location_id == 0 and not is_instance_valid(garage_cat):
 				_spawn_garage_cat(true)
-			hud.toast("Le chat a adopté ton garage ! Il ne repartira plus.")
+			hud.toast("Le chat a adopté ton garage ! Il ne repartira plus.", false)
 			return
-		hud.toast("La gamelle n'accepte que de la nourriture pour chat (Tech'Occase, 5 $).")
+		hud.toast("La gamelle n'accepte que de la nourriture pour chat (Tech'Occase, 5 $).", false)
 		return
 	if GameManager.cat_fed:
-		hud.toast("La gamelle est pleine. Le chat ronronne près de toi.")
+		hud.toast("La gamelle est pleine. Le chat ronronne près de toi.", false)
 	else:
-		hud.toast("La gamelle est vide. Achète de la nourriture pour chat sur Tech'Occase (5 $).")
+		hud.toast("La gamelle est vide. Achète de la nourriture pour chat sur Tech'Occase (5 $).", false)
 
 
 func _rack_without_switch_count() -> int:
@@ -984,7 +1009,7 @@ func _on_bowl_emptied() -> void:
 	## déjà rafraîchi par le chat via GameManager.cat_fed) — on prévient le
 	## joueur qu'il faudra la remplir à nouveau pour garder le chat.
 	_refresh_bowl_food()
-	hud.toast("Le chat a vidé sa gamelle ! Remplis-la à nouveau (nourriture 5 $ sur Tech'Occase) pour le garder.")
+	hud.toast("Le chat a vidé sa gamelle ! Remplis-la à nouveau (nourriture 5 $ sur Tech'Occase) pour le garder.", false)
 
 
 func _bench_interact() -> void:
@@ -1006,9 +1031,9 @@ func _bench_interact() -> void:
 			install_ui.open(item)
 			return
 		if item.get("kind", "") == "server":
-			hud.toast("Ce serveur est déjà configuré (OS ou proxy) — éloigne-toi de l'établi puis appuie sur E pour le poser.")
+			hud.toast("Ce serveur est déjà configuré (OS ou proxy) — éloigne-toi de l'établi et utilise le CLIC GAUCHE sur les cases vertes pour le poser (E ne le monte qu'en armoire proche).", false)
 			return
-	hud.toast("Il faut un serveur (sans OS ou en panne) à mettre sur l'établi.")
+	hud.toast("Il faut un serveur (sans OS ou en panne) à mettre sur l'établi.", false)
 
 
 func _open_rack_ui(rack: RackUnit) -> void:
@@ -1024,7 +1049,7 @@ func _unrack(server: ServerUnit) -> void:
 	## « Déranquer » : le serveur quitte l'armoire et revient dans les mains
 	## du joueur, prêt à être reposé ailleurs (au sol ou dans une autre armoire).
 	if player.is_carrying():
-		hud.toast("Dépose d'abord ce que tu portes !")
+		hud.toast("Dépose d'abord ce que tu portes !", false)
 		return
 	var rack := server.rack
 	if rack == null:
@@ -1045,7 +1070,7 @@ func _unrack(server: ServerUnit) -> void:
 	rack.queue_redraw()
 	rack_ui.close()
 	_recompute_stats()
-	hud.toast("%s déranché ! Pose-le où tu veux (clic gauche)." % server.item.get("name", ""))
+	hud.toast("%s déranché ! Pose-le où tu veux (clic gauche)." % server.item.get("name", ""), false)
 
 
 func _mount_into_rack(server: ServerUnit) -> void:
@@ -1055,7 +1080,7 @@ func _mount_into_rack(server: ServerUnit) -> void:
 	if rack == null or server.rack != null:
 		return
 	if not rack.has_free_slot():
-		hud.toast("Cette armoire est pleine (%d serveurs max) !" % rack.slots)
+		hud.toast("Cette armoire est pleine (%d serveurs max) !" % rack.slots, false)
 		return
 	occupied_cells.erase(server.cell)
 	server.cell = rack.cell
@@ -1078,13 +1103,13 @@ func _mount_toast(server_name: String, rack: RackUnit, server: ServerUnit = null
 	elif server != null and GameManager.location == 1 and rack.port_exhausted_for(server):
 		hud.toast("%s monté, mais le switch est SATURÉ en ports (%d ports max) — il n'est pas branché ! Achète un switch 24 ports ou retire un serveur." % [server_name, rack.switch_ports()])
 	else:
-		hud.toast("%s monté dans l'armoire !" % server_name)
+		hud.toast("%s monté dans l'armoire !" % server_name, false)
 
 
 func _remove_battery(rack: RackUnit) -> void:
 	## « Retirer » la batterie : elle revient dans les mains du joueur.
 	if player.is_carrying():
-		hud.toast("Dépose d'abord ce que tu portes !")
+		hud.toast("Dépose d'abord ce que tu portes !", false)
 		return
 	if rack.battery.is_empty():
 		return
@@ -1093,14 +1118,14 @@ func _remove_battery(rack: RackUnit) -> void:
 	rack.queue_redraw()
 	rack_ui.close()
 	_recompute_stats()
-	hud.toast("Batterie retirée de l'armoire !")
+	hud.toast("Batterie retirée de l'armoire !", false)
 
 
 func _remove_switch(rack: RackUnit) -> void:
 	## « Retirer » le switch : il revient dans les mains du joueur (attention,
 	## les serveurs de l'armoire ne seront plus branchés au réseau).
 	if player.is_carrying():
-		hud.toast("Dépose d'abord ce que tu portes !")
+		hud.toast("Dépose d'abord ce que tu portes !", false)
 		return
 	if rack.switch_item.is_empty():
 		return
@@ -1109,7 +1134,7 @@ func _remove_switch(rack: RackUnit) -> void:
 	rack.queue_redraw()
 	rack_ui.close()
 	_recompute_stats()
-	hud.toast("Switch retiré ! Les serveurs de l'armoire ne sont plus branchés au réseau.")
+	hud.toast("Switch retiré ! Les serveurs de l'armoire ne sont plus branchés au réseau.", false)
 
 
 func _deliveries_here() -> int:
@@ -1128,7 +1153,7 @@ func _delivery_pickup() -> void:
 	if _deliveries_here() == 0:
 		return
 	if player.is_carrying():
-		hud.toast("Dépose d'abord le colis que tu portes !")
+		hud.toast("Dépose d'abord le colis que tu portes !", false)
 		return
 	# On ne ramasse que la PREMIÈRE livraison de ce local (les colis de
 	# l'autre hangar restent là-bas, sur leur point de livraison).
@@ -1141,7 +1166,7 @@ func _delivery_pickup() -> void:
 		return
 	var item: Dictionary = GameManager.deliveries.pop_at(idx)
 	player.carried_item = item
-	hud.toast("Colis récupéré : %s ! Ramène-le à l'établi." % item.get("name", ""))
+	hud.toast("Colis récupéré : %s ! Ramène-le à l'établi." % item.get("name", ""), false)
 	_refresh_delivery_crates()
 
 
@@ -1157,17 +1182,17 @@ func _bench_place() -> void:
 	# (réparation) — parenthèses explicites pour la précédence and/or.
 	var has_os: bool = item.has("os") or item.has("proxy")
 	if item.get("kind", "") != "server" or (has_os and not bool(item.get("broken", false))):
-		hud.toast("Il faut un serveur SANS OS ou EN PANNE à mettre sur l'établi.")
+		hud.toast("Il faut un serveur SANS OS ou EN PANNE à mettre sur l'établi.", false)
 		return
 	if bench_unit.place(item):
 		player.carried_item = {}
 		bench_ui.refresh()
 		if bool(item.get("broken", false)):
-			hud.toast("Serveur en panne posé sur l'établi ! Clique sur Réparer pour démarrer (~2 min, l'autre baie reste libre).")
+			hud.toast("Serveur en panne posé sur l'établi ! Clique sur Réparer pour démarrer (~2 min, l'autre baie reste libre).", false)
 		else:
-			hud.toast("Serveur posé sur l'établi ! Choisis un OS ou un reverse proxy pour démarrer l'installation (4 s).")
+			hud.toast("Serveur posé sur l'établi ! Choisis un OS ou un reverse proxy pour démarrer l'installation (4 s).", false)
 	else:
-		hud.toast("Les deux baies sont occupées !")
+		hud.toast("Les deux baies sont occupées !", false)
 
 
 func _bench_repair(bay: int) -> void:
@@ -1181,12 +1206,12 @@ func _bench_repair(bay: int) -> void:
 		return
 	var cost := ShopCatalog.repair_price(item)
 	if GameManager.cash < cost:
-		hud.toast("Réparation impossible : il faut %d $ !" % cost)
+		hud.toast("Réparation impossible : il faut %d $ !" % cost, false)
 		return
 	if bench_unit.start_repair(bay):
 		GameManager.cash -= cost
 		bench_ui.close()  # le panneau se ferme : la baie travaille TOUTE SEULE
-		hud.toast("Réparation en cours… (~2 min, baie %d occupée — l'autre reste libre)" % (bay + 1))
+		hud.toast("Réparation en cours… (~2 min, baie %d occupée — l'autre reste libre)" % (bay + 1), false)
 
 
 func _bench_install(bay: int, os_id: String) -> void:
@@ -1202,18 +1227,18 @@ func _bench_install(bay: int, os_id: String) -> void:
 			install_name = str(proxy.get("name", os_id))
 		else:
 			install_name = str(OSList.get_os(os_id).get("name", os_id))
-		hud.toast("Installation de %s en cours… (baie %d, en parallèle)" % [install_name, bay + 1])
+		hud.toast("Installation de %s en cours… (baie %d, en parallèle)" % [install_name, bay + 1], false)
 
 
 func _bench_pickup(bay: int) -> void:
 	if bench_unit == null:
 		return
 	if player.is_carrying():
-		hud.toast("Dépose d'abord ce que tu portes !")
+		hud.toast("Dépose d'abord ce que tu portes !", false)
 		return
 	player.carried_item = bench_unit.pickup(bay)
 	bench_ui.refresh()
-	hud.toast("Serveur récupéré — installe-le dans une armoire Pro !")
+	hud.toast("Serveur récupéré — installe-le dans une armoire Pro !", false)
 
 
 # Étagère de stockage
@@ -1223,15 +1248,15 @@ func _storage_deposit() -> void:
 	if storage_unit == null:
 		return
 	if not player.is_carrying():
-		hud.toast("Tu ne portes rien à déposer !")
+		hud.toast("Tu ne portes rien à déposer !", false)
 		return
 	var item := player.carried_item
 	if storage_unit.deposit(item):
 		player.carried_item = {}
 		storage_ui.refresh()
-		hud.toast("%s déposé sur l'étagère !" % item.get("name", "Objet"))
+		hud.toast("%s déposé sur l'étagère !" % item.get("name", "Objet"), false)
 	else:
-		hud.toast("L'étagère est pleine (%d emplacements) !" % StorageUnit.SLOTS)
+		hud.toast("L'étagère est pleine (%d emplacements) !" % StorageUnit.SLOTS, false)
 
 
 func _storage_take(slot: int) -> void:
@@ -1239,11 +1264,11 @@ func _storage_take(slot: int) -> void:
 	if storage_unit == null:
 		return
 	if player.is_carrying():
-		hud.toast("Dépose d'abord ce que tu portes !")
+		hud.toast("Dépose d'abord ce que tu portes !", false)
 		return
 	player.carried_item = storage_unit.take(slot)
 	storage_ui.refresh()
-	hud.toast("Objet repris de l'étagère !")
+	hud.toast("Objet repris de l'étagère !", false)
 
 
 # Voiture / téléportation
@@ -1254,7 +1279,7 @@ func _on_travel_requested(target: int) -> void:
 		return
 	if target == 1 and not GameManager.location_unlocked:
 		travel_ui.close()
-		hud.toast("Local 2 verrouillé ! Achète-le sur Tech'Occase (3000 $).")
+		hud.toast("Local 2 verrouillé ! Achète-le sur Tech'Occase (3000 $).", false)
 		return
 	travel_ui.close()
 	_teleport(target)
@@ -1604,10 +1629,12 @@ func _can_place(cell: Vector2i, kind: String) -> bool:
 
 
 func _try_place_carried() -> bool:
-	## Touche E : pose sur la case où se tient le joueur.
+	## Touche E : pose sur la case où se tient le joueur. Un SERVEUR ne se pose
+	## PLUS au sol via E (trop facile de se retrouver coincé) : E ne fait que le
+	## monter dans une armoire ADJACENTE — la pose au sol passe par le clic.
 	if not player.is_carrying():
 		return false
-	return _place_at(_cell_at(player.global_position))
+	return _place_at(_cell_at(player.global_position), true)
 
 
 func _try_click_car() -> bool:
@@ -1638,38 +1665,41 @@ func _try_place_click() -> void:
 		return
 	if not player.is_carrying():
 		return
-	_place_at(_cell_at(get_global_mouse_position()))
+	_place_at(_cell_at(get_global_mouse_position()), false)
 
 
-func _place_at(cell: Vector2i) -> bool:
+func _place_at(cell: Vector2i, via_e: bool = false) -> bool:
 	## Logique unique de pose (E = case du joueur, clic = case du curseur).
 	## On ne peut poser qu'à quelques cases du personnage (PLACE_RANGE).
+	## via_e = vrai (touche E) : un SERVEUR n'est jamais posé AU SOL — il se
+	## monte seulement dans une armoire adjacente (le clic gauche reste le seul
+	## moyen de poser au sol, cases vertes).
 	var item := player.carried_item
 	var kind := str(item.get("kind", ""))
 	if kind == "server" and not item.has("os") and not item.has("proxy"):
-		hud.toast("Installe d'abord un OS (ou un proxy) à l'établi !")
+		hud.toast("Installe d'abord un OS (ou un proxy) à l'établi !", false)
 		return true
 	if kind == "kit":
-		hud.toast("Un kit serveur ne se pose pas — apporte-le à la TABLE D'ASSEMBLAGE (E) du Data Hall.")
+		hud.toast("Un kit serveur ne se pose pas — apporte-le à la TABLE D'ASSEMBLAGE (E) du Data Hall.", false)
 		return true
 	if kind == "catfood":
-		hud.toast("Verse la nourriture dans la GAMELLE (près de l'étagère) — appuie sur E devant elle.")
+		hud.toast("Verse la nourriture dans la GAMELLE (près de l'étagère) — appuie sur E devant elle.", false)
 		return true
 	if kind != "server" and kind != "furniture" and kind != "battery" and kind != "clim" and kind != "decor" and kind != "switch":
 		return false
 	# Limite d'armoires (propre à chaque local).
 	if kind == "furniture" and placed_racks.size() >= _loc_rack_limit():
-		hud.toast("Le %s est plein (%d armoires max) ! Achète un nouveau local sur Tech'Occase." % [_loc_name(), _loc_rack_limit()])
+		hud.toast("Le %s est plein (%d armoires max) ! Achète un nouveau local sur Tech'Occase." % [_loc_name(), _loc_rack_limit()], false)
 		return true
 	# Limite de climatiseurs (l'électricité a des limites !)
 	if kind == "clim" and placed_clims.size() >= GameManager.clim_limit:
-		hud.toast("Trop de climatiseurs dans ce local (%d max) ! L'électricité ne suit plus." % GameManager.clim_limit)
+		hud.toast("Trop de climatiseurs dans ce local (%d max) ! L'électricité ne suit plus." % GameManager.clim_limit, false)
 		return true
 	if not _in_bounds(cell):
-		hud.toast("Hors du bâtiment !")
+		hud.toast("Hors du bâtiment !", false)
 		return true
 	if _cell_dist(_cell_at(player.global_position), cell) > PLACE_RANGE:
-		hud.toast("Trop loin ! Rapproche-toi (rayon de %d cases)." % PLACE_RANGE)
+		hud.toast("Trop loin ! Rapproche-toi (rayon de %d cases)." % PLACE_RANGE, false)
 		return true
 
 	# Montage serveur : armoire avec un slot libre ADJACENTE : montage auto.
@@ -1684,11 +1714,15 @@ func _place_at(cell: Vector2i) -> bool:
 			return true
 		# Pose directe sur une armoire = montage, PAS une pose au sol.
 		if not _cell_has_free_rack(cell):
+			# Touche E : pas de serveur au sol — guider vers le clic gauche.
+			if via_e:
+				hud.toast("La touche E ne pose plus les serveurs au sol — utilise le CLIC GAUCHE sur les cases vertes pour le poser (ou monte-le dans une armoire proche).", false)
+				return true
 			if not _loc_floor_allowed():
-				hud.toast("Pas de pose au sol dans le DATA HALL — installe tes serveurs dans une armoire Pro !")
+				hud.toast("Pas de pose au sol dans le DATA HALL — installe tes serveurs dans une armoire Pro !", false)
 				return true
 			if _floor_server_count() >= MAX_FLOOR_SERVERS:
-				hud.toast("Le sol est plein (%d serveurs max) ! Monte-les en armoire — achète-en une sur Tech'Occase (%d max)." % [MAX_FLOOR_SERVERS, GameManager.rack_limit])
+				hud.toast("Le sol est plein (%d serveurs max) ! Monte-les en armoire — achète-en une sur Tech'Occase (%d max)." % [MAX_FLOOR_SERVERS, GameManager.rack_limit], false)
 				return true
 
 	# Batterie : se monte dans le slot batterie d'une armoire (adjacente ou directe).
@@ -1697,11 +1731,11 @@ func _place_at(cell: Vector2i) -> bool:
 		if rack == null:
 			rack = _rack_battery_at(cell)
 		if rack == null:
-			hud.toast("Il faut une armoire Pro avec un slot batterie libre — pose la batterie CONTRE l'armoire.")
+			hud.toast("Il faut une armoire Pro avec un slot batterie libre — pose la batterie CONTRE l'armoire.", false)
 			return true
 		rack.mount_battery(item)
 		player.carried_item = {}
-		hud.toast("%s installée dans l'armoire ! (-30%% de chaleur)" % item.get("name", "Batterie"))
+		hud.toast("%s installée dans l'armoire ! (-30%% de chaleur)" % item.get("name", "Batterie"), false)
 		return true
 
 	# Switch réseau : se monte dans le slot switch d'une armoire (adjacente ou
@@ -1711,15 +1745,15 @@ func _place_at(cell: Vector2i) -> bool:
 		if rack == null:
 			rack = _rack_switch_at(cell)
 		if rack == null:
-			hud.toast("Il faut une armoire SANS switch — pose le switch CONTRE l'armoire.")
+			hud.toast("Il faut une armoire SANS switch — pose le switch CONTRE l'armoire.", false)
 			return true
 		rack.mount_switch(item)
 		player.carried_item = {}
-		hud.toast("%s installé : les serveurs de l'armoire sont branchés au réseau !" % item.get("name", "Switch"))
+		hud.toast("%s installé : les serveurs de l'armoire sont branchés au réseau !" % item.get("name", "Switch"), false)
 		return true
 
 	if not _can_place(cell, kind):
-		hud.toast("Pas de place ici !")
+		hud.toast("Pas de place ici !", false)
 		return true
 	if kind == "server":
 		_spawn_server(item, cell)
@@ -1733,7 +1767,7 @@ func _place_at(cell: Vector2i) -> bool:
 	if kind == "server":
 		GameManager.servers_placed_total += 1
 	player.carried_item = {}
-	hud.toast("%s installé dans le %s !" % [item.get("name", ""), _loc_name()])
+	hud.toast("%s installé dans le %s !" % [item.get("name", ""), _loc_name()], false)
 	return true
 
 
@@ -2097,8 +2131,6 @@ func _on_tick() -> void:
 	elif randf() < MAIL_CHANCE:
 		GameManager.receive_random_mail()
 		mail_cooldown = MAIL_COOLDOWN_MIN + randi() % 120
-		if is_instance_valid(hud):
-			hud.toast("Nouvel e-mail dans ta boîte Mail ! (PC) — publicité, offre ou newsletter…")
 	# Bande passante des reverse proxies EN LIGNE du local : recalculée AVANT
 	# la limite (bw) pour que les clients remplissent jusqu'au total boosté.
 	GameManager.proxy_boost = _proxy_boost()
@@ -2262,7 +2294,7 @@ func _update_incidents() -> void:
 		if GameManager.ddos_ticks_left == 0:
 			GameManager.ddos_active = false
 			if not GameManager.firewall_owned:
-				hud.toast("Attaque DDoS terminée : tes serveurs reviennent en ligne.")
+				hud.toast("Attaque DDoS terminée : tes serveurs reviennent en ligne.", false)
 	elif GameManager.ddos_cooldown > 0:
 		GameManager.ddos_cooldown -= 1
 	elif not GameManager.outage_active and _online_servers() > 0 and randf() < DDOS_CHANCE:
@@ -2272,23 +2304,23 @@ func _update_incidents() -> void:
 		GameManager.ddos_ticks_left = randi_range(DDOS_DUR_MIN, DDOS_DUR_MAX)
 		GameManager.ddos_cooldown = randi_range(DDOS_COOLDOWN_MIN, DDOS_COOLDOWN_MAX)
 		if GameManager.firewall_owned:
-			hud.toast("ALERTE : attaque DDoS bloquée par le Pare-feu Forteresse !")
+			hud.toast("ALERTE : attaque DDoS bloquée par le Pare-feu Forteresse !", false)
 		else:
-			hud.toast("ALERTE : attaque DDoS ! Serveurs hors ligne %d s — achète un pare-feu sur Tech'Occase." % GameManager.ddos_ticks_left)
+			hud.toast("ALERTE : attaque DDoS ! Serveurs hors ligne %d s — achète un pare-feu sur Tech'Occase." % GameManager.ddos_ticks_left, false)
 
 # Coupure de courant
 	if GameManager.outage_ticks_left > 0:
 		GameManager.outage_ticks_left -= 1
 		if GameManager.outage_ticks_left == 0:
 			GameManager.outage_active = false
-			hud.toast("Retour du courant : les serveurs redémarrent.")
+			hud.toast("Retour du courant : les serveurs redémarrent.", false)
 	elif GameManager.outage_cooldown > 0:
 		GameManager.outage_cooldown -= 1
 	elif not GameManager.ddos_active and _online_servers() > 0 and randf() < OUTAGE_CHANCE:
 		GameManager.outage_active = true
 		GameManager.outage_ticks_left = randi_range(OUTAGE_DUR_MIN, OUTAGE_DUR_MAX)
 		GameManager.outage_cooldown = randi_range(OUTAGE_COOLDOWN_MIN, OUTAGE_COOLDOWN_MAX)
-		hud.toast("Coupure de courant ! Les serveurs SANS onduleur (UPS) s'éteignent — les armoires avec batterie tiennent.")
+		hud.toast("Coupure de courant ! Les serveurs SANS onduleur (UPS) s'éteignent — les armoires avec batterie tiennent.", false)
 
 
 func _online_servers() -> int:
@@ -2305,7 +2337,9 @@ func _on_install_started(text: String) -> void:
 	## continue en arrière-plan — le joueur peut vaquer à ses occupations.
 	player.carried_item = {}
 	queue_redraw()
-	hud.toast(text)
+	# Message de DÉBUT de travail à l'établi : info banale, pas besoin de la
+	# retrouver dans la cloche de notifications (silencieux).
+	hud.toast(text, false)
 
 
 func _process_bench_job() -> void:
@@ -2338,7 +2372,7 @@ func _finish_bench_job() -> void:
 	if mode == "repair":
 		item["broken"] = false
 		item["wear"] = clampf(float(item.get("wear", 0.0)) * 0.3, 0.0, 1.0)
-		hud.toast("Serveur réparé ! Reviens à l'établi (E) pour le récupérer et le remonter en armoire.")
+		hud.toast("Serveur réparé ! Reviens à l'établi (E) pour le récupérer et le remonter en armoire.", false)
 	else:
 		var os_id := str(job.get("os_id", ""))
 		var proxy := ProxyList.get_proxy(os_id)
@@ -2348,7 +2382,7 @@ func _finish_bench_job() -> void:
 		else:
 			item["os"] = os_id
 			item["os_name"] = str(OSList.get_os(os_id).get("name", os_id))
-		hud.toast("Logiciel installé ! Reviens à l'établi (E) pour récupérer le serveur.")
+		hud.toast("Logiciel installé ! Reviens à l'établi (E) pour récupérer le serveur.", false)
 	job["done"] = true
 	queue_redraw()
 
@@ -2360,7 +2394,7 @@ func _on_bench_pick_up() -> void:
 	if GameManager.bench_job.is_empty():
 		return
 	if player.is_carrying():
-		hud.toast("Dépose d'abord ce que tu portes !")
+		hud.toast("Dépose d'abord ce que tu portes !", false)
 		return
 	var item: Dictionary = GameManager.bench_job.get("item", {})
 	if item.is_empty():
@@ -2371,7 +2405,7 @@ func _on_bench_pick_up() -> void:
 	GameManager.bench_job = {}
 	install_ui.close()
 	queue_redraw()
-	hud.toast("%s récupéré ! Installe-le en armoire (E puis clic sur une baie) ou pose-le au sol." % item.get("name", "Serveur"))
+	hud.toast("%s récupéré ! Installe-le en armoire (E puis clic sur une baie) ou pose-le au sol." % item.get("name", "Serveur"), false)
 
 
 func _on_bay_finished(bay: int, is_repair: bool) -> void:
@@ -2382,7 +2416,7 @@ func _on_bay_finished(bay: int, is_repair: bool) -> void:
 		return
 	var b: Dictionary = bench_unit.bays[bay]
 	if is_repair:
-		hud.toast("Baie %d : serveur réparé ! Reviens le récupérer (E sur l'établi)." % (bay + 1))
+		hud.toast("Baie %d : serveur réparé ! Reviens le récupérer (E sur l'établi)." % (bay + 1), false)
 		return
 	var os_id := str(b.get("os_id", ""))
 	var proxy_id := str(b.get("proxy_id", ""))
@@ -2391,7 +2425,7 @@ func _on_bay_finished(bay: int, is_repair: bool) -> void:
 		name = str(OSList.get_os(os_id).get("name", os_id))
 	elif not proxy_id.is_empty():
 		name = str(ProxyList.get_proxy(proxy_id).get("name", proxy_id))
-	hud.toast("Baie %d : %s installé ! Reviens le récupérer (E sur l'établi)." % [bay + 1, name])
+	hud.toast("Baie %d : %s installé ! Reviens le récupérer (E sur l'établi)." % [bay + 1, name], false)
 
 
 # Événements aléatoires (vie du garage)
@@ -2435,9 +2469,9 @@ func _spawn_garage_cat(adopted := false) -> void:
 	add_child(garage_cat)
 	_refresh_cat_spots()
 	if adopted:
-		hud.toast("Le chat ronronne près de toi. Il est chez lui, ici.")
+		hud.toast("Le chat ronronne près de toi. Il est chez lui, ici.", false)
 	else:
-		hud.toast("Un chat du quartier est entré dans le garage… il inspecte tes serveurs.")
+		hud.toast("Un chat du quartier est entré dans le garage… il inspecte tes serveurs.", false)
 
 
 func _surprise_delivery() -> void:
@@ -2459,14 +2493,14 @@ func _surprise_delivery() -> void:
 	item["loc"] = 0
 	GameManager.deliveries.append(item)
 	_refresh_delivery_crates()
-	hud.toast("Livraison surprise : un livreur s'est trompé d'adresse — %s gratuit devant la porte !" % item.get("name", "colis"))
+	hud.toast("Livraison surprise : un livreur s'est trompé d'adresse — %s gratuit devant la porte !" % item.get("name", "colis"), false)
 
 
 func _client_tip() -> void:
 	## Un client satisfait laisse un pourboire en liquide.
 	var tip := randi_range(15, 60) + int(GameManager.income_per_sec * 10.0)
 	GameManager.cash += tip
-	hud.toast("Un client te laisse un pourboire : +%d $ !" % tip)
+	hud.toast("Un client te laisse un pourboire : +%d $ !" % tip, false)
 
 
 func _ambient_toast() -> void:
@@ -2479,7 +2513,7 @@ func _ambient_toast() -> void:
 		"Il pleut dehors. Les serveurs adorent la fraîcheur.",
 		"Une pizza est livrée par erreur. Tu la gardes. (Elle est délicieuse.)",
 	]
-	hud.toast(msgs[randi() % msgs.size()])
+	hud.toast(msgs[randi() % msgs.size()], false)
 
 
 # HUD / livraisons
