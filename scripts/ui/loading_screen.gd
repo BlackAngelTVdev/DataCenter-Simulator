@@ -215,12 +215,18 @@ func _set_joke(idx: int) -> void:
 
 func _finish() -> void:
 	set_process(false)
+	# change_scene_to_packed libère la scène COURANTE immédiatement (et avec
+	# elle ce node s'il en est enfant) : on capture la condition de repli
+	# AVANT le basculement, pour ne plus jamais accéder au node après (il
+	# est peut-être déjà libéré -> get_tree() nul -> crash).
+	var attached_to_root := get_parent() == get_tree().root
 	if _packed != null:
 		get_tree().change_scene_to_packed(_packed)
 	else:
 		# Repli : chargement classique si le thread a échoué.
 		get_tree().change_scene_to_file(_path)
-	# Si le node avait été accroché à la racine (current_scene null au moment
-	# du go_to), le libérer juste après le basculement de scène.
-	if get_parent() == get_tree().root:
+	# Uniquement si le node avait été accroché à la racine (current_scene nul
+	# au moment du go_to) : dans ce cas il n'a pas été libéré par le
+	# changement de scène, on le libère donc nous-mêmes.
+	if attached_to_root:
 		queue_free.call_deferred()
