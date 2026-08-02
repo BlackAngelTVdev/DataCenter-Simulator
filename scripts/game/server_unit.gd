@@ -177,4 +177,3 @@ func _draw() -> void:
 		draw_rect(Rect2(wx, wy, bw, 2), Color(0, 0, 0, 0.45))
 		var wcol := Color(0.3, 0.9, 0.4).lerp(Color(0.95, 0.35, 0.25), clampf(wear, 0.0, 1.0))
 		draw_rect(Rect2(wx, wy, bw * clampf(wear, 0.0, 1.0), 2), wcol)
-
