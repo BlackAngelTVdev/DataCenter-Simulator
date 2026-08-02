@@ -2,6 +2,14 @@
 .godot/
 /android/
 
+# Exports / builds (binaires générés par l'export Godot)
+export/
+build/
+dist/
+*.exe
+*.pck
+*.console.exe
+
 # Données locales de l'app Freebuff (pas le jeu)
 .freebuff/
 desktop-v2.db
